@@ -8,15 +8,12 @@
 # BuildBot distro
 #
 # Version 1 (I don't like 'point' versions for configuration files):
+#
 # In this version, everything is done explicitly. No cleverness with
 # variables, builders, with Python scripts, with most anything. Mostly
 # I ignored the "fleet" of predefined buildStep Classes/commands and
 # used shell scripts.
 #
-# Create the dictionary that the buildmaster pays attention to. We
-# also use a shorter alias to save typing.
-
-c = BuildmasterConfig = {}
 
 ####### VARIABLES
 
@@ -28,6 +25,43 @@ repo = {
     'repourl' : 'git://git.linuxcnc.org/git/linuxcnc.git',
     'branch' : 'unified-build-candidate-3',
     'repodir' : 'linuxcnc.git',
+    }
+
+####### CONFIG
+
+# Read in host and builder configuration
+#
+# The file 'config.yaml' should be of this format:
+#
+# slaves:
+#   slave1: pass1
+#   slave2: pass2
+# builderconfigs:
+#   config1:
+#     - slave1
+#     - slave2
+#   config2:
+#     - slave1
+#
+# The 'slaves' section defines slave names and passwords.
+#
+# The 'builderconfigs' section defines builder configuration names and
+# the list of slaves for that configuration.
+import os, yaml
+configs = yaml.load(open(os.path.join(basedir,'config.yaml'),'r').read())
+slaves = configs['slaves']
+builderconfigs = configs['builderconfigs']
+authusers = configs['auth']
+
+# Init the dictionary that the buildmaster pays attention to. We
+# also use a shorter alias to save typing.
+
+c = BuildmasterConfig = {
+    'slaves' : [],
+    'schedulers' : [],
+    'change_source' : [],
+    'builders' : [],
+    'status' : [],
     }
 
 ####### BUILDSLAVES
@@ -43,25 +77,9 @@ repo = {
 # note: no harm to define some "future" slaves which don't exist yet
 
 from buildbot.buildslave import BuildSlave
-c['slaves'] = [
-               BuildSlave("jessie-rtpreempt-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("jessie-rtpreempt-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("jessie-xenomai-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("jessie-xenomai-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("precise-rtpreempt-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("precise-rtpreempt-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("precise-xenomai-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("precise-xenomai-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("raring-xenomai-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("raring-xenomai-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("raring-rtpreempt-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("raring-rtpreempt-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("wheezy-xenomai-amd64-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("wheezy-xenomai-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("wheezy-rtpreempt-amd64-vm1",*bspasswd*, max_builds=1),
-               BuildSlave("wheezy-rtpreempt-i386-vm1", *bspasswd*, max_builds=1),
-               BuildSlave("wheezy-xenomai-armv7l-bbb1", *bspasswd*, max_builds=1),
-              ]
+for (host, passwd) in slaves.items():
+    c['slaves'].append(
+        BuildSlave(host, passwd, max_builds=1))
 
 
 # 'slavePortnum' defines the TCP port to listen on for connections
@@ -98,51 +116,16 @@ c['change_source'].append(GitPoller(
 from buildbot.schedulers.basic import SingleBranchScheduler
 from buildbot.schedulers.forcesched import ForceScheduler
 from buildbot.changes import filter
-c['schedulers'] = []
 c['schedulers'].append(SingleBranchScheduler(
-                            name="all",
-                            change_filter=filter.ChangeFilter(branch=repo['branch']),
-                            treeStableTimer=600,
-                            builderNames=[
-                                          "jessie-rtpreempt-amd64",
-                                          "jessie-rtpreempt-i386",
-                                          "jessie-xenomai-amd64",
-                                          "jessie-xenomai-i386",
-#                                          "precise-rtpreempt-amd64",
-#                                          "precise-rtpreempt-i386",
-#                                          "precise-xenomai-amd64",
-#                                          "precise-xenomai-i386",
-                                          "raring-xenomai-amd64",
-                                          "raring-xenomai-i386",
-#                                         "raring-rtpreempt-amd64",
-#                                         "raring-rtpreempt-i386",
-                                          "wheezy-rtpreempt-amd64",
-                                          "wheezy-rtpreempt-i386",
-                                          "wheezy-xenomai-amd64",
-                                          "wheezy-xenomai-i386",
-                                          "wheezy-xenomai-armv7l"
-                                         ] ))
+        name="all",
+        change_filter=filter.ChangeFilter(branch=repo['branch']),
+        treeStableTimer=600,
+        builderNames=slaves.keys(),
+        ))
 c['schedulers'].append(ForceScheduler(
-                            name="force",
-                            builderNames=[
-                                          "jessie-rtpreempt-amd64",
-                                          "jessie-rtpreempt-i386",
-                                          "jessie-xenomai-amd64",
-                                          "jessie-xenomai-i386",
-#                                          "precise-rtpreempt-amd64",
-#                                          "precise-rtpreempt-i386",
-#                                          "precise-xenomai-amd64",
-#                                          "precise-xenomai-i386",
-#                                          "raring-rtpreempt-amd64",
-#                                          "raring-rtpreempt-i386",
-                                          "raring-xenomai-amd64",
-                                          "raring-xenomai-i386",
-                                          "wheezy-rtpreempt-amd64",
-                                          "wheezy-rtpreempt-i386",
-                                          "wheezy-xenomai-amd64",
-                                          "wheezy-xenomai-i386",
-                                          "wheezy-xenomai-armv7l"
-                                         ] ))
+        name="force",
+        builderNames=slaves.keys()
+        ))
 
 ####### BUILDERS
 
@@ -354,96 +337,18 @@ ubcfactory.addStep(
 # "builddir="<shortname>" after "name=" on each BuilderConfig
 
 from buildbot.config import BuilderConfig
-c['builders']=[]
 
-c['builders'].append(
-    BuilderConfig(name="jessie-rtpreempt-amd64",
-      slavenames=["jessie-rtpreempt-amd64-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="jessie-rtpreempt-i386",
-      slavenames=["jessie-rtpreempt-i386-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="jessie-xenomai-amd64",
-      slavenames=["jessie-xenomai-amd64-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="jessie-xenomai-i386",
-      slavenames=["jessie-xenomai-i386-vm1"],
-      factory=ubcfactory,
-      category="production"))
-
-#c['builders'].append(
-#    BuilderConfig(name="precise-rtpreempt-amd64",
-#      slavenames=["precise-rtpreempt-amd64-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-#c['builders'].append(
-#    BuilderConfig(name="precise-rtpreempt-i386",
-#      slavenames=["precise-rtpreempt-i386-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-#c['builders'].append(
-#    BuilderConfig(name="precise-xenomai-amd64",
-#      slavenames=["precise-xenomai-amd64-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-#c['builders'].append(
-#    BuilderConfig(name="precise-xenomai-i386",
-#      slavenames=["precise-xenomai-i386-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-
-c['builders'].append(
-    BuilderConfig(name="raring-xenomai-amd64",
-      slavenames=["raring-xenomai-amd64-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="raring-xenomai-i386",
-      slavenames=["raring-xenomai-i386-vm1"],
-      factory=ubcfactory,
-      category="production"))
-#c['builders'].append(
-#    BuilderConfig(name="raring-rtpreempt-amd64",
-#      slavenames=["raring-rtpreempt-amd64-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-#c['builders'].append(
-#    BuilderConfig(name="raring-rtpreempt-i386",
-#      slavenames=["raring-rtpreempt-i386-vm1"],
-#      factory=ubcfactory,
-#      category="production"))
-
-c['builders'].append(
-    BuilderConfig(name="wheezy-xenomai-amd64",
-      slavenames=["wheezy-xenomai-amd64-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="wheezy-rtpreempt-amd64",
-      slavenames=["wheezy-rtpreempt-amd64-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="wheezy-xenomai-i386",
-      slavenames=["wheezy-xenomai-i386-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="wheezy-rtpreempt-i386",
-      slavenames=["wheezy-rtpreempt-i386-vm1"],
-      factory=ubcfactory,
-      category="production"))
-c['builders'].append(
-    BuilderConfig(name="wheezy-xenomai-armv7l",
-      slavenames=["wheezy-xenomai-armv7l-bbb1"],
-      factory=ubcfactory,
-      category="production"))
+for (buildername,builderslaves) in builderconfigs.items():
+    # Only configure slaves that exist in the master slaves list
+    existingslaves = [ bs for bs in builderslaves if bs in slaves ]
+    # Don't add empty builderconfigs
+    if not existingslaves:
+        continue
+    c['builders'].append(
+        BuilderConfig(name=buildername,
+                      slavenames=existingslaves,
+                      factory=ubcfactory,
+                      category="production"))
 
 ####### STATUS TARGETS
 
@@ -461,15 +366,13 @@ c['builders'].append(
 #       does nothing for forced builds but console view now displays
 #       git change info...pretty cool!
 
-c['status'] = []
-
 from buildbot.status import html
 from buildbot.status.web import authz, auth
 
 authz_cfg=authz.Authz(
     # change any of these to True to enable; see the manual for more
     # options
-    auth=auth.BasicAuth([(*name1*,*passwd1*),(*name2*,*passwd2*),(*name3*,*passwd3*)]),
+    auth=auth.BasicAuth(authusers.items()),
     gracefulShutdown = True,
     forceBuild = 'auth', # use this to test your slave once it is set up
     forceAllBuilds = True,
@@ -478,7 +381,9 @@ authz_cfg=authz.Authz(
     stopAllBuilds = True,
     cancelPendingBuild = True,
 )
-c['status'].append(html.WebStatus(http_port=8010, authz=authz_cfg, order_console_by_time=True))
+c['status'].append(
+    html.WebStatus(
+        http_port=8010, authz=authz_cfg, order_console_by_time=True))
 
 ####### PROJECT IDENTITY
 
