@@ -1,0 +1,139 @@
+# build slave -> password map
+#
+# Slaves commented out will be implemented in the future
+#
+# Passwords may be generated with
+#    apg -M ncl -m 30 -x 30 -n 1
+slaves:
+  jessie-rtpreempt-amd64-vm1: *bspasswd*
+  jessie-rtpreempt-i386-vm1: *bspasswd*
+  jessie-xenomai-amd64-vm1: *bspasswd*
+  jessie-xenomai-i386-vm1: *bspasswd*
+#  precise-rtpreempt-amd64-vm1: *bspasswd*
+#  precise-rtpreempt-i386-vm1: *bspasswd*
+#  precise-xenomai-amd64-vm1: *bspasswd*
+#  precise-xenomai-i386-vm1: *bspasswd*
+  raring-xenomai-amd64-vm1: *bspasswd*
+  raring-xenomai-i386-vm1: *bspasswd*
+#  raring-rtpreempt-amd64-vm1: *bspasswd*
+#  raring-rtpreempt-i386-vm1: *bspasswd*
+  wheezy-xenomai-amd64-vm1: *bspasswd*
+  wheezy-xenomai-i386-vm1: *bspasswd*
+  wheezy-rtpreempt-amd64-vm1: *bspasswd*
+  wheezy-rtpreempt-i386-vm1: *bspasswd*
+  wheezy-xenomai-armv7l-bbb1: *bspasswd*
+#  sl6-rtpreempt-i386-vm1: *bspasswd*
+#  sl6-rtpreempt-amd64-vm1: *bspasswd*
+#  sl6-xenomai-i386-vm1: *bspasswd*
+#  sl6-xenomai-amd64-vm1: *bspasswd*
+#  fc18-rtpreempt-i386-vm1: *bspasswd*
+#  fc18-rtpreempt-amd64-vm1: *bspasswd*
+#  fc18-xenomai-i386-vm1: *bspasswd*
+#  fc18-xenomai-amd64-vm1: *bspasswd*
+#  fc19-xenomai-i386-vm1: *bspasswd*
+#  fc19-xenomai-amd64-vm1: *bspasswd*
+#  fc19-rtpreempt-i386-vm1: *bspasswd*
+#  fc19-rtpreempt-amd64-vm1: *bspasswd*
+#  fc19-rtpreempt-armv7l-bbb1: *bspasswd*
+#  fc20-xenomai-i386-vm1: *bspasswd*
+#  fc20-xenomai-amd64-vm1: *bspasswd*
+#  fc20-rtpreempt-i386-vm1: *bspasswd*
+#  fc20-rtpreempt-amd64-vm1: *bspasswd*
+#  fc20-rtpreempt-armv7l-bbb1: *bspasswd*
+
+# builder configuration name -> build slave list map
+# builder configs whose hosts are all commented out above may be defined,
+# and will be skipped
+builderconfigs:
+  jessie-rtpreempt-amd64:
+    - jessie-rtpreempt-amd64-vm1
+  jessie-rtpreempt-i386:
+    - jessie-rtpreempt-i386-vm1
+  jessie-xenomai-amd64:
+    - jessie-xenomai-amd64-vm1
+  jessie-xenomai-i386:
+    - jessie-xenomai-i386-vm1
+  precise-rtpreempt-amd64:
+    - precise-rtpreempt-amd64-vm1
+  precise-rtpreempt-i386:
+    - precise-rtpreempt-i386-vm1
+  precise-xenomai-amd64:
+    - precise-xenomai-amd64-vm1
+  precise-xenomai-i386:
+    - precise-xenomai-i386-vm1
+  raring-xenomai-amd64:
+    - raring-xenomai-amd64-vm1
+  raring-xenomai-i386:
+    - raring-xenomai-i386-vm1
+  raring-rtpreempt-amd64:
+    - raring-rtpreempt-amd64-vm1
+  raring-rtpreempt-i386:
+    - raring-rtpreempt-i386-vm1
+  wheezy-xenomai-amd64:
+    - wheezy-xenomai-amd64-vm1
+  wheezy-rtpreempt-amd64:
+    - wheezy-rtpreempt-amd64-vm1
+  wheezy-xenomai-i386:
+    - wheezy-xenomai-i386-vm1
+  wheezy-rtpreempt-i386:
+    - wheezy-rtpreempt-i386-vm1
+  wheezy-xenomai-armv7l:
+    - wheezy-xenomai-armv7l-bbb1
+  fc18-posix-i386:
+    - fc18-i386-xenomai-vm1
+    - fc18-i386-rtpreempt-vm1
+  fc18-posix-amd64:
+    - fc18-amd64-xenomai-vm1
+    - fc18-amd64-rtpreempt-vm1
+  fc19-posix-i386:
+    - fc19-i386-xenomai-vm1
+    - fc19-i386-rtpreempt-vm1
+  fc19-posix-amd64:
+    - fc19-amd64-xenomai-vm1
+    - fc19-amd64-rtpreempt-vm1
+  sl6-posix-i386:
+    - sl6-i386-xenomai-vm1
+    - sl6-i386-rtpreempt-vm1
+  sl6-posix-amd64:
+    - sl6-amd64-xenomai-vm1
+    - sl6-amd64-rtpreempt-vm1
+  fc18-rtpreempt-i386:
+    - fc18-i386-rtpreempt-vm1
+  fc18-rtpreempt-amd64:
+    - fc18-amd64-rtpreempt-vm1
+  fc19-rtpreempt-i386:
+    - fc19-i386-rtpreempt-vm1
+  fc19-rtpreempt-amd64:
+    - fc19-amd64-rtpreempt-vm1
+  sl6-rtpreempt-i386:
+    - sl6-i386-rtpreempt-vm1
+  sl6-rtpreempt-amd64:
+    - sl6-amd64-rtpreempt-vm1
+  fc18-xenomai-i386:
+    - fc18-i386-xenomai-vm1
+  fc18-xenomai-amd64:
+    - fc18-amd64-xenomai-vm1
+  fc19-xenomai-i386:
+    - fc19-i386-xenomai-vm1
+  fc19-xenomai-amd64:
+    - fc19-amd64-xenomai-vm1
+  sl6-xenomai-i386:
+    - sl6-i386-xenomai-vm1
+  sl6-xenomai-amd64:
+    - sl6-amd64-xenomai-vm1
+  fc18-xenomai_kernel-i386:
+    - fc18-i386-xenomai-vm1
+  fc18-xenomai_kernel-amd64:
+    - fc18-amd64-xenomai-vm1
+  fc19-xenomai_kernel-i386:
+    - fc19-i386-xenomai-vm1
+  fc19-xenomai_kernel-amd64:
+    - fc19-amd64-xenomai-vm1
+  sl6-xenomai_kernel-i386:
+    - sl6-i386-xenomai-vm1
+  sl6-xenomai_kernel-amd64:
+    - sl6-amd64-xenomai-vm1
+
+# user ID -> password map
+auth:
+  user1: *bspasswd*
