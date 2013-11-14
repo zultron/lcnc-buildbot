@@ -27,6 +27,11 @@ repo = {
     'repodir' : 'linuxcnc.git',
     }
 
+# Debug flag (True or False)
+debug = True
+if debug:
+    from pprint import pprint
+
 ####### CONFIG
 
 # Read in host and builder configuration
@@ -48,6 +53,13 @@ repo = {
 # The 'builderconfigs' section defines builder configuration names and
 # the list of slaves for that configuration.
 import os, yaml
+try:
+    basedir
+    outside_buildbot = False
+except:
+    # basedir not defined; this script not called from buildbot
+    basedir = os.path.dirname(os.path.realpath(__file__))
+    outside_buildbot = True
 configs = yaml.load(open(os.path.join(basedir,'config.yaml'),'r').read())
 slaves = configs['slaves']
 builderconfigs = configs['builderconfigs']
@@ -78,6 +90,8 @@ c = BuildmasterConfig = {
 
 from buildbot.buildslave import BuildSlave
 for (host, passwd) in slaves.items():
+    if debug:
+        print("Adding slave, name='%s', passwd='%s[...]'" % (host,passwd[:3]))
     c['slaves'].append(
         BuildSlave(host, passwd, max_builds=1))
 
@@ -343,7 +357,13 @@ for (buildername,builderslaves) in builderconfigs.items():
     existingslaves = [ bs for bs in builderslaves if bs in slaves ]
     # Don't add empty builderconfigs
     if not existingslaves:
+        if debug:
+            print ("builder config '%s': No slaves; not adding" %
+                   buildername)
         continue
+    if debug:
+        print ("builder config '%s':  Adding with slaves:  %s" %
+               (buildername, ', '.join(existingslaves)))
     c['builders'].append(
         BuilderConfig(name=buildername,
                       slavenames=existingslaves,
@@ -368,6 +388,9 @@ for (buildername,builderslaves) in builderconfigs.items():
 
 from buildbot.status import html
 from buildbot.status.web import authz, auth
+
+if debug:
+    print "Adding basic auth with users:  %s" % ', '.join(authusers.keys())
 
 authz_cfg=authz.Authz(
     # change any of these to True to enable; see the manual for more
