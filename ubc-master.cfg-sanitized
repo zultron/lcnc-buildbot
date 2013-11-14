@@ -1,29 +1,36 @@
 # ex: set syntax=python:					-*-python-*-
 
-# This is the buildmaster config file for the Unified Build Candidate Project for
-# LinuxCNC. It must be installed as 'master.cfg' in your buildmaster's base directory.
+# This is the buildmaster config file for the Unified Build Candidate
+# Project for LinuxCNC. It must be installed as 'master.cfg' in your
+# buildmaster's base directory.
 # 
-# Author: Kent A Reed, based on master.cfg.sample file included in BuildBot distro
+# Author: Kent A Reed, based on master.cfg.sample file included in
+# BuildBot distro
 #
-# Version 1 (I don't like 'point' versions for configuration files): 
+# Version 1 (I don't like 'point' versions for configuration files):
 # In this version, everything is done explicitly. No cleverness with
-# variables, builders, with Python scripts, with most anything. Mostly I ignored the 
-# "fleet" of predefined buildStep Classes/commands and used shell scripts.
+# variables, builders, with Python scripts, with most anything. Mostly
+# I ignored the "fleet" of predefined buildStep Classes/commands and
+# used shell scripts.
 #
-# This version is hardwired to the unified-build-candidate-3 branch on 
+# This version is hardwired to the unified-build-candidate-3 branch on
 # git://git.linuxcnc.org/git/linuxcnc.git
 #                
-# Create the dictionary that the buildmaster pays attention to. We also use
-# a shorter alias to save typing.
+# Create the dictionary that the buildmaster pays attention to. We
+# also use a shorter alias to save typing.
 
 c = BuildmasterConfig = {}
 
 ####### BUILDSLAVES
 
-# The 'slaves' list defines the set of recognized buildslaves. Each element is
-# a BuildSlave object, specifying a unique slave name and password.  The same
-# slave name and password must be configured on the slave.
-# note: max_builds= is used to limit the cpu burden. The host may be capable of more
+# The 'slaves' list defines the set of recognized buildslaves. Each
+# element is a BuildSlave object, specifying a unique slave name and
+# password.  The same slave name and password must be configured on
+# the slave.
+#
+# note: max_builds= is used to limit the cpu burden. The host may be
+# capable of more
+#
 # note: no harm to define some "future" slaves which don't exist yet
 
 from buildbot.buildslave import BuildSlave
@@ -48,18 +55,19 @@ c['slaves'] = [
               ]
 
 
-# 'slavePortnum' defines the TCP port to listen on for connections from slaves.
-#  The default is 9989. This must match the value configured into the buildslaves 
-#  (with their --master option)
+# 'slavePortnum' defines the TCP port to listen on for connections
+#  from slaves.  The default is 9989. This must match the value
+#  configured into the buildslaves (with their --master option)
 
 c['slavePortnum'] = 9989
 
 ####### CHANGESOURCES
 
-# the 'change_source' setting tells the buildmaster how it should find out
-# about source code changes.  Here we poll the unified-build-candidate-3 branch
-# of the linuxcnc git repo every 5 minutes
-# note: there can be only one GitPoller pointing at a given repository
+# the 'change_source' setting tells the buildmaster how it should find
+# out about source code changes.  Here we poll the
+# unified-build-candidate-3 branch of the linuxcnc git repo every 5
+# minutes note: there can be only one GitPoller pointing at a given
+# repository
 
 from buildbot.changes.gitpoller import GitPoller
 c['change_source'] = []
@@ -70,11 +78,15 @@ c['change_source'].append(GitPoller(
 
 ####### SCHEDULERS
 
-# Configure the Schedulers, which decide how to react to incoming changes.  In this
-# version, just trigger a cycle of build and runtests on the branch. 
+# Configure the Schedulers, which decide how to react to incoming
+# changes.  In this version, just trigger a cycle of build and
+# runtests on the branch.
+#
 # Note we also support forced builds.
-# treeStableTimer determines how long after the last detected change the scheduler waits
-# before triggering the builders.
+#
+# treeStableTimer determines how long after the last detected change
+# the scheduler waits before triggering the builders.
+#
 # note: here we can't define "future" builders; gives buildbot a tummy ache
 
 from buildbot.schedulers.basic import SingleBranchScheduler
@@ -128,40 +140,53 @@ c['schedulers'].append(ForceScheduler(
 
 ####### BUILDERS
 
-# The 'builders' list defines the Builders, which tell Buildbot how to perform a build:
-# what steps, and which slaves can execute them.  Note that any particular build will
-# only take place on one slave.
+# The 'builders' list defines the Builders, which tell Buildbot how to
+# perform a build:
+#
+# what steps, and which slaves can execute them.  Note that any
+# particular build will only take place on one slave.
 
 from buildbot.process.factory import BuildFactory
 from buildbot.steps.source.git import Git
 from buildbot.steps.shell import ShellCommand
 
-# in this version, the following ubcfactory is just a list of explicitly defined steps
-# like the man said, there's more than one way to do this.
-# note: all the buildSteps can have a descriptionDone parameter but I found it hard
-#       to word them so they made sense on failures as well as successes
+# in this version, the following ubcfactory is just a list of
+# explicitly defined steps like the man said, there's more than one
+# way to do this.
+#
+# note: all the buildSteps can have a descriptionDone parameter but I
+#       found it hard to word them so they made sense on failures as
+#       well as successes
 
 ubcfactory = BuildFactory()
 
-# fetch into the repo if it already exists in the 'buildir' subdir; else clone a fresh repo 
+# fetch into the repo if it already exists in the 'buildir' subdir;
+# else clone a fresh repo
 
 ubcfactory.addStep(ShellCommand(name="init", description=["fetch into", "or clone", "repository", "as needed"], command=["/bin/bash", "-c", "if [ -d linuxcnc.git ]; then (cd linuxcnc.git; git fetch origin +refs/heads/*:refs/heads/*; echo fetched); else git clone --bare git://git.linuxcnc.org/git/linuxcnc.git linuxcnc.git; fi;"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
 
 
 # remove old contents of working subdirectory
+#
 # notes:
-# 1. working subdir 'build' is created by default, but let's test for it just in case
+#
+# 1. working subdir 'build' is created by default, but let's test for
+# it just in case
+#
 # 2. gotta run in shell to use wildcard
 
 ubcfactory.addStep(ShellCommand(name="clear", description=["clear", "working", "directory"], command=["/bin/bash", "-c", "if [ -d build ]; then rm -rf build/*; else mkdir build; echo recreated builddir; fi;"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
 
 # populate working subdirectory from the repo
+#
 # note: gotta run in shell to use pipe, yada yada, yada
 
 ubcfactory.addStep(ShellCommand(name="git", description=["populate", "working", "directory"], command=["/bin/bash", "-c", "(cd linuxcnc.git; git archive unified-build-candidate-3) | tar xCf build -"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
-# note: fails if buildslave user doesn't have passwordless permission to run 'sudo /bin/dmesg'
+#
+# note: fails if buildslave user doesn't have passwordless permission
+# to run 'sudo /bin/dmesg'
 
 ubcfactory.addStep(ShellCommand(name="dmesg", description=["read and", "clear","dmesg","buffer"], command=["sudo","/bin/dmesg","-c"], env={"LS_COLORS":""}))
 
@@ -182,7 +207,9 @@ ubcfactory.addStep(ShellCommand(name="configure", description="configure", comma
 ubcfactory.addStep(ShellCommand(name="make", description="make", command=["make", "V=1"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
 
 # finally, set proper permissions on executables
-# note: fails if buildslave user doesn't have passwordless permission to run 'sudo /usr/bin/make'
+#
+# note: fails if buildslave user doesn't have passwordless permission
+# to run 'sudo /usr/bin/make'
 
 ubcfactory.addStep(ShellCommand(name="setuid", description=["make","setuid"], command=["sudo", "/usr/bin/make", "setuid"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
 
@@ -194,11 +221,17 @@ ubcfactory.addStep(ShellCommand(name="runtests", description="runtests", command
 
 ubcfactory.addStep(ShellCommand(name="closeout", description=["read","dmesg","buffer"], command=["/bin/dmesg"], workdir="build", env={"LS_COLORS":""}))
 
-# finally, define builders. Each associates a buildfactory with one or more buildslaves.
-# note: category= is used to segregate builders still in test from production builders
-#                 haven't used this yet
-# note: can't define "future" builders; seems to give buildbot a tummyache
-# note: can reduce length of buildslave dirs by adding "builddir="<shortname>" after "name=" on each BuilderConfig
+# finally, define builders. Each associates a buildfactory with one or
+# more buildslaves.
+#
+# note: category= is used to segregate builders still in test from
+#                 production builders haven't used this yet
+#
+# note: can't define "future" builders; seems to give buildbot a
+# tummyache
+#
+# note: can reduce length of buildslave dirs by adding
+# "builddir="<shortname>" after "name=" on each BuilderConfig
 
 from buildbot.config import BuilderConfig
 c['builders']=[]
@@ -294,15 +327,19 @@ c['builders'].append(
 
 ####### STATUS TARGETS
 
-# 'status' is a list of Status Targets. The results of each build will be
-# pushed to these targets. buildbot/status/*.py has a variety to choose from,
-# including web pages, email senders, and IRC bots.
+# 'status' is a list of Status Targets. The results of each build will
+# be pushed to these targets. buildbot/status/*.py has a variety to
+# choose from, including web pages, email senders, and IRC bots.
+#
 # In this version, only WebStatus is used.
-# note: the docs make me believe I can use categories= here 
-#       but checkconfig disagrees???
-# note: adding "order_console_by_time=True" to WebStatus to make the 
-#       console view work (cf: trac.buildbot.net/wiki/FAQ) - sadly, does nothing for 
-#       forced builds but console view now displays git change info...pretty cool!
+#
+# note: the docs make me believe I can use categories= here but
+#       checkconfig disagrees???
+#
+# note: adding "order_console_by_time=True" to WebStatus to make the
+#       console view work (cf: trac.buildbot.net/wiki/FAQ) - sadly,
+#       does nothing for forced builds but console view now displays
+#       git change info...pretty cool!
 
 c['status'] = []
 
@@ -326,24 +363,25 @@ c['status'].append(html.WebStatus(http_port=8010, authz=authz_cfg, order_console
 ####### PROJECT IDENTITY
 
 # the 'title' string will appear at the top of this buildbot
-# installation's html.WebStatus home page (linked to the
-# 'titleURL') and is embedded in the title of the waterfall HTML page.
+# installation's html.WebStatus home page (linked to the 'titleURL')
+# and is embedded in the title of the waterfall HTML page.
 
 c['title'] = "Unified Build Candidate"
 c['titleURL'] = "https://github.com/mhaberler"
 
-# the 'buildbotURL' string should point to the location where the buildbot's
-# internal web server (usually the html.WebStatus page) is visible. This
-# typically uses the port number set in the Waterfall 'status' entry, but
-# with an externally-visible host name which the buildbot cannot figure out
-# without some help.
+# the 'buildbotURL' string should point to the location where the
+# buildbot's internal web server (usually the html.WebStatus page) is
+# visible. This typically uses the port number set in the Waterfall
+# 'status' entry, but with an externally-visible host name which the
+# buildbot cannot figure out without some help.
 
 c['buildbotURL'] = "http://localhost:8010/"
 
 ####### DB URL
 
 c['db'] = {
-    # This specifies what database buildbot uses to store its state.  You can leave
-    # this at its default for all but the largest installations.
+    # This specifies what database buildbot uses to store its state.
+    # You can leave this at its default for all but the largest
+    # installations.
     'db_url' : "sqlite:///state.sqlite",
 }
