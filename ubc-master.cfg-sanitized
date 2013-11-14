@@ -13,13 +13,22 @@
 # I ignored the "fleet" of predefined buildStep Classes/commands and
 # used shell scripts.
 #
-# This version is hardwired to the unified-build-candidate-3 branch on
-# git://git.linuxcnc.org/git/linuxcnc.git
-#                
 # Create the dictionary that the buildmaster pays attention to. We
 # also use a shorter alias to save typing.
 
 c = BuildmasterConfig = {}
+
+####### VARIABLES
+
+# Define some variables used in the config.
+
+# Git repository config pointing to the unified-build-candidate-3
+# branch on git://git.linuxcnc.org/git/linuxcnc.git
+repo = {
+    'repourl' : 'git://git.linuxcnc.org/git/linuxcnc.git',
+    'branch' : 'unified-build-candidate-3',
+    'repodir' : 'linuxcnc.git',
+    }
 
 ####### BUILDSLAVES
 
@@ -64,16 +73,13 @@ c['slavePortnum'] = 9989
 ####### CHANGESOURCES
 
 # the 'change_source' setting tells the buildmaster how it should find
-# out about source code changes.  Here we poll the
-# unified-build-candidate-3 branch of the linuxcnc git repo every 5
-# minutes note: there can be only one GitPoller pointing at a given
-# repository
+# out about source code changes.  Here we poll the configured branch
+# of the configured git repo every 5 minutes note: there can be only
+# one GitPoller pointing at a given repository
 
 from buildbot.changes.gitpoller import GitPoller
-c['change_source'] = []
 c['change_source'].append(GitPoller(
-        'git://git.linuxcnc.org/git/linuxcnc.git',
-        workdir='gitpoller-workdir', branch='unified-build-candidate-3',
+        repo['repourl'], workdir='gitpoller-workdir', branch=repo['branch'],
         pollinterval=300))
 
 ####### SCHEDULERS
@@ -95,7 +101,7 @@ from buildbot.changes import filter
 c['schedulers'] = []
 c['schedulers'].append(SingleBranchScheduler(
                             name="all",
-                            change_filter=filter.ChangeFilter(branch='unified-build-candidate-3'),
+                            change_filter=filter.ChangeFilter(branch=repo['branch']),
                             treeStableTimer=600,
                             builderNames=[
                                           "jessie-rtpreempt-amd64",
@@ -163,7 +169,24 @@ ubcfactory = BuildFactory()
 # fetch into the repo if it already exists in the 'buildir' subdir;
 # else clone a fresh repo
 
-ubcfactory.addStep(ShellCommand(name="init", description=["fetch into", "or clone", "repository", "as needed"], command=["/bin/bash", "-c", "if [ -d linuxcnc.git ]; then (cd linuxcnc.git; git fetch origin +refs/heads/*:refs/heads/*; echo fetched); else git clone --bare git://git.linuxcnc.org/git/linuxcnc.git linuxcnc.git; fi;"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="init",
+        description=["fetch into", "or clone",
+                     "repository", "as needed"],
+        command=["/bin/bash", "-c",
+                 ("if [ -d %(repodir)s ]; then"
+                  "    (cd %(repodir)s; "
+                  "     git fetch origin +refs/heads/*:refs/heads/*; "
+                  "     echo fetched); "
+                  "else"
+                  "    git clone --bare"
+                  "      %(repourl)s %(repodir)s; "
+                  "fi;") % repo
+                 ],
+        workdir=".",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 
 # remove old contents of working subdirectory
@@ -175,51 +198,148 @@ ubcfactory.addStep(ShellCommand(name="init", description=["fetch into", "or clon
 #
 # 2. gotta run in shell to use wildcard
 
-ubcfactory.addStep(ShellCommand(name="clear", description=["clear", "working", "directory"], command=["/bin/bash", "-c", "if [ -d build ]; then rm -rf build/*; else mkdir build; echo recreated builddir; fi;"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="clear",
+        description=["clear", "working", "directory"],
+        command=["/bin/bash", "-c",
+                 ("if [ -d build ]; then"
+                  "    rm -rf build/*; "
+                  "else "
+                  "    mkdir build; "
+                  "    echo recreated builddir; "
+                  "fi;")],
+        workdir=".",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # populate working subdirectory from the repo
 #
 # note: gotta run in shell to use pipe, yada yada, yada
 
-ubcfactory.addStep(ShellCommand(name="git", description=["populate", "working", "directory"], command=["/bin/bash", "-c", "(cd linuxcnc.git; git archive unified-build-candidate-3) | tar xCf build -"], workdir=".", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="git",
+        description=["populate", "working", "directory"],
+        command=["/bin/bash", "-c",
+                 ("(cd %(repodir)s; git archive $(branch)) "
+                  "| tar xCf build -") % repo],
+        workdir=".",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
 #
 # note: fails if buildslave user doesn't have passwordless permission
 # to run 'sudo /bin/dmesg'
 
-ubcfactory.addStep(ShellCommand(name="dmesg", description=["read and", "clear","dmesg","buffer"], command=["sudo","/bin/dmesg","-c"], env={"LS_COLORS":""}))
+ubcfactory.addStep(
+    ShellCommand(
+        name="dmesg",
+        description=["read and", "clear","dmesg","buffer"],
+        command=["sudo","/bin/dmesg","-c"],
+        env={"LS_COLORS":""}))
 
 # report some useful info back to the buildmaster
 
-ubcfactory.addStep(ShellCommand(name="environment",description=["collect","environment", "info"], command=["/bin/bash", "-c", "echo 'uname -a:'; uname -a; echo; echo 'ulimit -a:'; ulimit -a; echo; echo 'git --version:'; git --version; echo; echo 'gcc --version:'; gcc --version; echo; echo 'python -V:'; python -V; echo; echo 'lsb_release --all:'; lsb_release --all; echo; echo 'lsmod:'; lsmod; echo; echo 'dpkg --get-selections:'; dpkg --get-selections;"], env={"LS_COLORS":""}))
+ubcfactory.addStep(
+    ShellCommand(
+        name="environment",
+        description=["collect","environment", "info"],
+        command=["/bin/bash", "-c",
+                 ("echo 'uname -a:'; "
+                  "uname -a; "
+                  "echo; "
+                  "echo 'ulimit -a:'; "
+                  "ulimit -a; "
+                  "echo; "
+                  "echo 'git --version:'; "
+                  "git --version; "
+                  "echo; "
+                  "echo 'gcc --version:'; "
+                  "gcc --version; "
+                  "echo; "
+                  "echo 'python -V:'; "
+                  "python -V; "
+                  "echo; "
+                  "echo 'lsb_release --all:'; "
+                  "lsb_release --all; "
+                  "echo; "
+                  "echo 'lsmod:'; "
+                  "lsmod; "
+                  "echo; "
+                  "echo 'dpkg --get-selections:'; "
+                  "dpkg --get-selections;")
+                 ],
+        env={"LS_COLORS":""}))
 
 # autogen needed build files
 
-ubcfactory.addStep(ShellCommand(name="autogen", description="autogen", command=["./autogen.sh"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="autogen",
+        description="autogen",
+        command=["./autogen.sh"],
+        workdir="build/src",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # configure the build process - use default options here
 
-ubcfactory.addStep(ShellCommand(name="configure", description="configure", command=["./configure"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="configure",
+        description="configure",
+        command=["./configure"],
+        workdir="build/src",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # initialize the make process
 
-ubcfactory.addStep(ShellCommand(name="make", description="make", command=["make", "V=1"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="make",
+        description="make",
+        command=["make", "V=1"],
+        workdir="build/src",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # finally, set proper permissions on executables
 #
 # note: fails if buildslave user doesn't have passwordless permission
 # to run 'sudo /usr/bin/make'
 
-ubcfactory.addStep(ShellCommand(name="setuid", description=["make","setuid"], command=["sudo", "/usr/bin/make", "setuid"], workdir="build/src", env={"LS_COLORS":""}, haltOnFailure=True))
+ubcfactory.addStep(
+    ShellCommand(
+        name="setuid",
+        description=["make","setuid"],
+        command=["sudo", "/usr/bin/make", "setuid"],
+        workdir="build/src",
+        env={"LS_COLORS":""},
+        haltOnFailure=True))
 
 # run the runtests in the default realtime environment
 
-ubcfactory.addStep(ShellCommand(name="runtests", description="runtests", command=["/bin/bash","-c","source ./scripts/rip-environment; runtests -v"], workdir="build", env={"LS_COLORS":""}))
+ubcfactory.addStep(
+    ShellCommand(
+        name="runtests",
+        description="runtests",
+        command=["/bin/bash","-c",
+                 "source ./scripts/rip-environment; runtests -v"],
+        workdir="build",
+        env={"LS_COLORS":""}))
 
 # read dmesg ring buffer again in case anything useful was logged 
 
-ubcfactory.addStep(ShellCommand(name="closeout", description=["read","dmesg","buffer"], command=["/bin/dmesg"], workdir="build", env={"LS_COLORS":""}))
+ubcfactory.addStep(
+    ShellCommand(
+        name="closeout",
+        description=["read","dmesg","buffer"],
+        command=["/bin/dmesg"],
+        workdir="build",
+        env={"LS_COLORS":""}))
 
 # finally, define builders. Each associates a buildfactory with one or
 # more buildslaves.
