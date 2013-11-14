@@ -1,0 +1,13 @@
+# config.yaml contains site-specific configs and sensitive data
+/config.yaml
+
+# buildbot create-master artifacts
+/buildbot.tac
+/public_html/
+/state.sqlite
+/templates/
+
+# emacs droppings
+*~
+\#*\#
+.\#*
