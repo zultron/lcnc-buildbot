@@ -1,4 +1,4 @@
-# ex: set syntax=python:
+# ex: set syntax=python:					-*-python-*-
 
 # This is the buildmaster config file for the Unified Build Candidate Project for
 # LinuxCNC. It must be installed as 'master.cfg' in your buildmaster's base directory.
