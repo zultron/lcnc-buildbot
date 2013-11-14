@@ -7,6 +7,14 @@
 /state.sqlite
 /templates/
 
+# gitpoller repo
+/gitpoller-workdir/
+
+# runtime artifacts
+/http.log
+/twistd.log
+/twistd.pid
+
 # emacs droppings
 *~
 \#*\#
