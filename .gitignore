@@ -15,6 +15,9 @@
 /twistd.log
 /twistd.pid
 
+# hell, just ignore all directories
+/*/
+
 # emacs droppings
 *~
 \#*\#
