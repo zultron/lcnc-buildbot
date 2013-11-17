@@ -1,10 +1,114 @@
+#                                                           -*-conf-*-
+changesources:
+# changesource configs
+#
+# These settings tell the buildmaster how it should find out about
+# source code changes.
+#
+# Note: there can be only one GitPoller pointing at a given repository
+#
+  glo-ubc3:
+# Poll the configured branch of the configured git repo every 5
+# minutes
+    type: poller
+    repourl: git://git.linuxcnc.org/git/linuxcnc.git
+    branch: unified-build-candidate-3
+    workdir: gitpoller-workdir
+    pollinterval: 300
+    project: ubc
+
+schedulers:
+# scheduler configs
+#
+# This is unimplemented.  There should be a dict of schedulername :
+# schedulerconfigdict pairs, of course.  There should also be a way to
+# map builders to schedulers.  As below, I don't understand how these
+# interact yet, so for now, the master config is hacked to add two
+# hard-wired schedulers 'all' and 'force' and all builders to each
+# change source.
+
+buildfactories:
+# Build factories with steps
+#
+# Each build factory contains a list of steps.
+#
+# If a step has no 'type' attribute, or type is 'script', it is
+# assumed to be in the script pointed to by the 'buildsteps-script'
+# file, and executed with '<script> <step>'.
+#
+# The 'script.tty' type is like 'script', but runs the command with a
+# tty.  This can be useful for sudo configs that disallow tty-less
+# sudo (RedHat default).
+# 
+# The 'source.git' type sets up a buildbot.steps.source.git.Git step.
+# The below example fetches the repo from a (local) URL into the
+# 'repo' subdirectory.
+#
+# To be implemented: there might need to be a map of buildfactories to
+# builderconfigs.  I don't understand how those map together in more
+# complex cases, so for now, every factory will get all builders.
+  ubc:
+    buildsteps-script: buildsteps.sh
+    steps:
+      - name: init
+        type: source.git
+        description:
+          - fetching
+          - (or cloning)
+          - git repo
+        repourl: http://bb0.cf0.zultron.com/git/linuxcnc.git
+        mode: incremental
+        workdir: repo
+      - name: sourcetree
+        description:
+          - unpacking
+          - clean
+          - source
+          - tree
+      - name: dmesg
+        type: script.tty
+        description:
+          - read and
+          - clear
+          - dmesg
+          - buffer
+      - name: environment
+        description:
+          - collect
+          - environment
+          - info
+      - name: autogen
+        description:
+          - autogen
+      - name: configure
+        description:
+          - configure
+      - name: make
+        description:
+          - make
+      - name: setuid
+        type: script.tty
+        description:
+          - make
+          - setuid
+      - name: runtests
+        description:
+          - runtests
+      - name: closeout
+        description:
+          - read
+          - dmesg
+          - buffer
+
+
+slaves:
 # build slave -> password map
 #
 # Slaves commented out will be implemented in the future
 #
 # Passwords may be generated with
 #    apg -M ncl -m 30 -x 30 -n 1
-slaves:
+#
   jessie-rtpreempt-amd64-vm1: *bspasswd*
   jessie-rtpreempt-i386-vm1: *bspasswd*
   jessie-xenomai-amd64-vm1: *bspasswd*
