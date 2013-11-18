@@ -98,5 +98,9 @@ step-closeout() {
     dmesg
 }
 
-step-$step || { echo "$usage" 1>&2; exit 1; }
+step-$step; res=$?
+
+echo "step $step exited with status $res" 1>&2
+exit $res
+
 
