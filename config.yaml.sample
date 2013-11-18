@@ -13,7 +13,7 @@ changesources:
     type: poller
     repourl: git://git.linuxcnc.org/git/linuxcnc.git
     branch: unified-build-candidate-3
-    workdir: gitpoller-workdir
+    workdir: /home/buildbot/git-repos
     pollinterval: 300
     project: ubc
 
@@ -56,7 +56,7 @@ buildfactories:
           - fetching
           - (or cloning)
           - git repo
-        repourl: http://bb0.cf0.zultron.com/git/linuxcnc.git
+        repourl: http://build-master.example.com/git/linuxcnc.git
         mode: incremental
         workdir: repo
       - name: sourcetree

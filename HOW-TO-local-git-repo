@@ -1,0 +1,26 @@
+When the upstream git repo is on the other side of a low-bandwidth
+connection, it may be desirable to mirror it just once, and configure
+slaves to fetch from that repo during a build.
+
+In the config.yaml file (see the sample 'config.yaml.sample'),
+configure the upstream repo in the change source's 'repourl'
+parameter.  In the example, the 'glo-ubc3' change source is set to
+poll the linuxcnc.org git server.  Choose a 'workdir' suitable for
+access by the web server.  By default, 'buildmaster' creates the repo
+without read permission for the others.  [FIXME:  how can this be
+changed in buildbot?]
+
+The local build master runs a web server exposing the local
+repo.  The below Apache configuration follows the sample config, where
+the change source 'workdir' is /home/buildbot/git-repos:
+
+Alias /git /home/buildbot/git-repos
+<Directory /home/buildbot/git-repos>
+        Options Indexes
+        Order Allow,Deny
+        Allow from all
+</Directory>
+
+In the build factory configuration, add a step to fetch from the above
+repo.  In the example, the 'init' step fetches from the build master
+at the URI directory configured in the 'Alias' above.
