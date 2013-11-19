@@ -6,9 +6,19 @@ In the config.yaml file (see the sample 'config.yaml.sample'),
 configure the upstream repo in the change source's 'repourl'
 parameter.  In the example, the 'glo-ubc3' change source is set to
 poll the linuxcnc.org git server.  Choose a 'workdir' suitable for
-access by the web server.  By default, 'buildmaster' creates the repo
-without read permission for the others.  [FIXME:  how can this be
-changed in buildbot?]
+access by the web server.
+
+By default, 'buildmaster' creates the repo without read permission for
+the others.  Set a suitable umask in buildbot.tac so that apache has
+read access to the git repo:
+
+    umask = 022
+
+When the build master fetches the repo, it doesn't put branch names
+into 'refs/heads'; instead these are put into 'buildbot/<url>'.  This
+may be hacked around by removing the 'refs/heads' directory, and in
+its place dropping a symlink to 'buildbot/<url>'.  FIXME This is
+certainly the wrong way to do it, but I don't know the right way.
 
 Because apache doesn't understand git, auxiliary files must be
 generated to help clients discover references.  In the 'workdir', run:
