@@ -12,7 +12,9 @@ changesources:
 # minutes
     type: poller
     repourl: git://git.linuxcnc.org/git/linuxcnc.git
-    branch: unified-build-candidate-3
+    branches:
+      - unified-build-candidate-3
+      - master
     workdir: /home/buildbot/git-repos
     pollinterval: 300
     project: ubc
