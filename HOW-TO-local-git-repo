@@ -10,6 +10,11 @@ access by the web server.  By default, 'buildmaster' creates the repo
 without read permission for the others.  [FIXME:  how can this be
 changed in buildbot?]
 
+Because apache doesn't understand git, auxiliary files must be
+generated to help clients discover references.  In the 'workdir', run:
+
+    su -s /bin/bash buildbot -c 'git update-server-info'
+
 The local build master runs a web server exposing the local
 repo.  The below Apache configuration follows the sample config, where
 the change source 'workdir' is /home/buildbot/git-repos:
