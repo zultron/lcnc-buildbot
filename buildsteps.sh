@@ -75,7 +75,14 @@ step-autogen() {
 
 step-configure() {
     cd source/src
-    ./configure
+    # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
+    if test -f /usr/lib64/tkConfig.sh; then
+	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
+    fi
+    if test -f /usr/lib64/tclConfig.sh; then
+	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
+    fi
+    ./configure $ARGS
 }
 
 step-make() {
