@@ -22,7 +22,7 @@ fi
 
 step-sourcetree() {
     cd $REPODIR
-    rm -rf source
+    rm -rf $WORKDIR/source
     git archive --prefix=source/ HEAD | tar xCf "$WORKDIR" -
 }
 
