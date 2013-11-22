@@ -20,15 +20,56 @@ if test $REPODIR = ${REPODIR#/}; then   # relative path
     REPODIR="$(readlink -f $(pwd)/../$REPODIR)"
 fi
 
+# on the server side, update the git poller repo for sharing over the
+# web
+
+step-git-web() {
+    cd $POLLER_REPODIR
+    git update-server-info
+}
+
+
+# fetch into the repo if it already exists in the 'buildir' subdir;
+# else clone a fresh repo
+
+step-init() {
+    if [ -d $REPODIR ]; then
+	pushd $REPODIR
+	git fetch origin +refs/heads/*:refs/heads/*
+	echo fetched
+	popd
+    else
+	git clone --bare "$GIT_URL" $REPODIR
+	pushd $REPODIR
+	# Force the correct git url
+	#
+	# This is needed if the URL changes, and possibly in differing
+	# versions of git, some that set origin after clone, some that
+	# don't
+	git remote rm origin 2>/dev/null || true
+	git remote add origin "$GIT_URL"
+	popd
+    fi
+}
+
+# clear and populate working subdirectory from the repo
+
 step-sourcetree() {
     cd $REPODIR
     rm -rf $WORKDIR/source
-    git archive --prefix=source/ HEAD | tar xCf "$WORKDIR" -
+    git archive --prefix=source/ "$revision" | tar xCf "$WORKDIR" -
 }
+
+# read and clear dmesg ring buffer to aid in debugging failed builds
+#
+# note: fails if buildslave user doesn't have passwordless permission
+# to run 'sudo /bin/dmesg'
 
 step-dmesg() {
     sudo dmesg -c
 }
+
+# report some useful info back to the buildmaster
 
 step-environment() {
     echo 'uname -a:'; 
@@ -68,10 +109,14 @@ step-environment() {
     fi
 }
 
+# autogen needed build files
+
 step-autogen() {
     cd source/src
     ./autogen.sh
 }
+
+# configure the build process - use default options here
 
 step-configure() {
     cd source/src
@@ -85,21 +130,32 @@ step-configure() {
     ./configure $ARGS
 }
 
+# initialize the make process
+
 step-make() {
     cd source/src
     make V=1
 }
+
+# finally, set proper permissions on executables
+#
+# note: fails if buildslave user doesn't have passwordless permission
+# to run 'sudo /usr/bin/make'
 
 step-setuid() {
     cd source/src
     sudo make setuid
 }
 
+# run the runtests in the default realtime environment
+
 step-runtests() {
     cd source
     source ./scripts/rip-environment
     runtests -v
 }
+
+# read dmesg ring buffer again in case anything useful was logged 
 
 step-closeout() {
     dmesg
