@@ -1,4 +1,12 @@
 #                                                           -*-conf-*-
+global:
+# global settings
+#
+# buildbot 0.8.6 has no facility for setting the umask (0.8.8 has a
+# 'umask' parameter in buildbot.tac), so set in in the configuration;
+# this is useful for slaves fetching a gitpoller repo over http
+  umask: 022
+#
 changesources:
 # changesource configs
 #
@@ -10,11 +18,15 @@ changesources:
   glo-ubc3:
 # Poll the configured branch of the configured git repo every 5
 # minutes
+#
+# buildbot pre-0.8.8 had no 'branches' list, only a 'branch' argument
+# with one value.
     type: poller
     repourl: git://git.linuxcnc.org/git/linuxcnc.git
     branches:
       - unified-build-candidate-3
       - master
+#   branch: unified-build-candidate-3
     workdir: /home/buildbot/git-repos
     pollinterval: 300
     project: ubc
@@ -36,12 +48,10 @@ buildfactories:
 #
 # If a step has no 'type' attribute, or type is 'script', it is
 # assumed to be in the script pointed to by the 'buildsteps-script'
-# file, and executed with '<script> <step>'.
+# file, and executed with '<script> <step>'.  If a 'server-side'
+# attribute is 'True', the script will be run on the build master
+# instead of the slaves.
 #
-# The 'script.tty' type is like 'script', but runs the command with a
-# tty.  This can be useful for sudo configs that disallow tty-less
-# sudo (RedHat default).
-# 
 # The 'source.git' type sets up a buildbot.steps.source.git.Git step.
 # The below example fetches the repo from a (local) URL into the
 # 'repo' subdirectory.
@@ -52,23 +62,51 @@ buildfactories:
   ubc:
     buildsteps-script: buildsteps.sh
     steps:
+# run a server-side script that updates the gitpoller repo for sharing
+# over http; location of repo will be in $POLLER_REPODIR environment
+# variable
+      - name: git-web
+        description:
+          - updating
+          - git
+          - server
+          - info
+        server-side: True
+        env:
+          POLLER_REPODIR: /d/buildbot/git-repos/linuxcnc.git
+# First attempt at using buildbot's facilities for fetching the git
+# repo
+#      - name: init
+#        type: source.git
+#        description:
+#          - fetching
+#          - (or cloning)
+#          - git repo
+#        repourl: http://build-master.example.com/git/linuxcnc.git
+#        mode: incremental
+#        workdir: repo
+#
+# Fetch the git repo over http.  Pass the 'revision' property and git
+# urls through the environment.
       - name: init
-        type: source.git
         description:
           - fetching
           - (or cloning)
           - git repo
-        repourl: http://build-master.example.com/git/linuxcnc.git
-        mode: incremental
-        workdir: repo
+        env:
+          GIT_URL: http://bb0.cf0.zultron.com/git/linuxcnc.git/.git
+        env-properties:
+          - revision
       - name: sourcetree
         description:
           - unpacking
           - clean
           - source
           - tree
+# Run sudo dmesg -c with a tty, which some sudo configs require (RH,
+# to avoid cleartext passwords over ssh)
       - name: dmesg
-        type: script.tty
+        usePTY: True
         description:
           - read and
           - clear
@@ -89,7 +127,7 @@ buildfactories:
         description:
           - make
       - name: setuid
-        type: script.tty
+        usePTY: True
         description:
           - make
           - setuid
