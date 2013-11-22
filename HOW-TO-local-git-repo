@@ -9,21 +9,19 @@ poll the linuxcnc.org git server.  Choose a 'workdir' suitable for
 access by the web server.
 
 By default, 'buildmaster' creates the repo without read permission for
-the others.  Set a suitable umask in buildbot.tac so that apache has
-read access to the git repo:
+the others.  A suitable umask must be set so that apache has read
+access to the git repo, maybe 022.  For pre-0.8.8, set the 'umask'
+parameter in the 'global' setting of config.yaml, as in the sample
+file.  For 0.8.8 on, set it on the provided line in buildbot.tac.
 
-    umask = 022
-
-When the build master fetches the repo, it doesn't put branch names
-into 'refs/heads'; instead these are put into 'buildbot/<url>'.  This
-may be hacked around by removing the 'refs/heads' directory, and in
-its place dropping a symlink to 'buildbot/<url>'.  FIXME This is
-certainly the wrong way to do it, but I don't know the right way.
+In 0.8.8, the build master fetches branches into
+'buildbot/<giturl>/<branch>' rather than 'refs/heads/<branch>'.  I
+don't know how to deal with this yet.
 
 Because apache doesn't understand git, auxiliary files must be
-generated to help clients discover references.  In the 'workdir', run:
-
-    su -s /bin/bash buildbot -c 'git update-server-info'
+generated to help clients discover references.  See the 'git-web' step
+in the sample config, which runs 'git update-server-info' on the build
+master before each new build.
 
 The local build master runs a web server exposing the local
 repo.  The below Apache configuration follows the sample config, where
