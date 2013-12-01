@@ -7,6 +7,20 @@ global:
 # this is useful for slaves fetching a gitpoller repo over http
   umask: 022
 #
+identity:
+# the 'title' string will appear at the top of this buildbot
+# installation's html.WebStatus home page (linked to the 'titleURL')
+# and is embedded in the title of the waterfall HTML page.
+  title: Unified Build Candidate
+  titleURL: http://www.linuxcnc.org
+# the 'buildbotURL' string should point to the location where the
+# buildbot's internal web server (usually the html.WebStatus page) is
+# visible. This typically uses the port number set in the Waterfall
+# 'status' entry, but with an externally-visible host name which the
+# buildbot cannot figure out without some help.
+  buildbotURL: http://localhost:8010/
+
+
 changesources:
 # changesource configs
 #
