@@ -47,11 +47,6 @@ master = "localhost:9989"
 
 category = None
 
-# When sending the notification, send this repository if (and only if)
-# it's set (via --repository)
-
-repository = None
-
 # When sending the notification, send this project if (and only if)
 # it's set (via --project)
 
@@ -67,6 +62,9 @@ configfile = os.sep.join((os.path.dirname(os.path.abspath(__file__)),
 # Change source name from config file
 changesource = "local-repos"
 
+# Repos from config file
+git_repos = {}
+
 # Password portion of PB login credentials to send the changes to the master
 auth = "secret-pass"
 
@@ -75,9 +73,12 @@ auth = "secret-pass"
 
 encoding = 'utf8'
 
-# The GIT_DIR environment variable must have been set up so that any
-# git commands that are executed will operate on the repository we're
-# installed in.
+# git fetch output prints updates in lines like this:
+#  * [new branch]      bar        -> bar
+#  + a1576ed...2a22233 foo        -> foo  (forced update)
+updatere=re.compile(r'^ \+ ([^. ]+)\.\.\.([^. ]+) +([^ ]+) .*')
+newbranchre=re.compile(r'^ \* \[new branch\] +([^ ]+) .*')
+
 
 changes = []
 
@@ -126,9 +127,10 @@ def connected(remote):
     return addChanges(remote, changes.__iter__())
 
 
-def grab_commit_info(c, rev):
+def grab_commit_info(c, rconfig):
     # Extract information about committer and files using git show
-    f = os.popen("git show --raw --pretty=full %s" % rev, 'r')
+    f = os.popen("%(git)s show --raw --pretty=full %(revision)s" % rconfig,
+                 'r')
 
     files = []
     comments = []
@@ -162,7 +164,7 @@ def grab_commit_info(c, rev):
         logging.warning("git show exited with status %d" % status)
 
 
-def gen_changes(input, branch):
+def gen_changes(input, rconfig):
     while True:
         line = input.readline()
         if not line:
@@ -171,24 +173,25 @@ def gen_changes(input, branch):
         logging.debug("Change: %s" % line)
 
         m = re.match(r"^([0-9a-f]+) (.*)$", line.strip())
+        rconfig['revision'] = m.group(1)
+
         c = {'revision': m.group(1),
-             'branch': unicode(branch, encoding=encoding),
+             'branch': unicode(rconfig['branch'], encoding=encoding),
         }
 
         if category:
             c['category'] = unicode(category, encoding=encoding)
 
-        if repository:
-            c['repository'] = unicode(repository, encoding=encoding)
+        c['repository'] = unicode(rconfig['local-remote'], encoding=encoding)
 
         if project:
             c['project'] = unicode(project, encoding=encoding)
 
-        grab_commit_info(c, m.group(1))
+        grab_commit_info(c, rconfig)
         changes.append(c)
 
 
-def gen_create_branch_changes(newrev, refname, branch):
+def gen_create_branch_changes(rconfig):
     # A new branch has been created. Generate changes for everything
     # up to `newrev' which does not exist in any branch but `refname'.
     #
@@ -196,21 +199,22 @@ def gen_create_branch_changes(newrev, refname, branch):
     # at the same time, pointing to the same commit, or if there are
     # commits that only exists in a common subset of the new branches.
 
-    logging.info("Branch `%s' created" % branch)
+    logging.info("Branch `%(branch)s' created" % rconfig)
 
-    f = os.popen("git rev-parse --not --branches"
-            + "| grep -v $(git rev-parse %s)" % refname
-            + "| git rev-list --reverse --pretty=oneline --stdin %s" % newrev,
-            'r')
+    f = os.popen("%(git)s rev-parse --not --branches"
+                 "| grep -v $(%(git)s rev-parse %(branch)s)"
+                 "| %(git)s rev-list --reverse --pretty=oneline "
+                 "--stdin %(newrev)s" % rconfig,
+                 'r')
 
-    gen_changes(f, branch)
+    gen_changes(f, rconfig)
 
     status = f.close()
     if status:
         logging.warning("git rev-list exited with status %d" % status)
 
 
-def gen_update_branch_changes(oldrev, newrev, refname, branch):
+def gen_update_branch_changes(rconfig):
     # A branch has been updated. If it was a fast-forward update,
     # generate Change events for everything between oldrev and newrev.
     #
@@ -219,20 +223,25 @@ def gen_update_branch_changes(oldrev, newrev, refname, branch):
     # newrev. Then, generate Change events for each commit between the
     # common ancestor and newrev.
 
-    logging.info("Branch `%s' updated %s .. %s"
-            % (branch, oldrev[:8], newrev[:8]))
+    logging.info("Branch `%(branch)s' updated %(oldrev)s .. %(newrev)s"
+            % rconfig)
 
-    baserev = commands.getoutput("git merge-base %s %s" % (oldrev, newrev))
-    logging.debug("oldrev=%s newrev=%s baserev=%s" % (oldrev, newrev, baserev))
-    if baserev != oldrev:
-        c = {'revision': baserev,
+    rconfig['baserev'] = commands.getoutput(
+        "%(git)s merge-base %(oldrev)s %(newrev)s" % rconfig)
+    rconfig['baserev_s'] = rconfig['baserev'][:8]
+    logging.debug("oldrev=%(oldrev)s newrev=%(newrev)s baserev=%(baserev_s)s" %
+                  rconfig)
+    if rconfig['baserev'] != rconfig['oldrev']:
+        c = {'revision': rconfig['baserev'],
              'comments': "Rewind branch",
-             'branch': unicode(branch, encoding=encoding),
+             'branch': unicode(rconfig['branch'], encoding=encoding),
              'who': "dummy",
         }
-        logging.info("Branch %s was rewound to %s" % (branch, baserev[:8]))
+        logging.info("Branch %(branch)s was rewound to %(baserev_s)s" %
+                     rconfig)
         files = []
-        f = os.popen("git diff --raw %s..%s" % (oldrev, baserev), 'r')
+        f = os.popen("%(git)s diff --raw %(oldrev)s..%(baserev)s" % 
+                     rconfig, 'r')
         while True:
             line = f.readline()
             if not line:
@@ -249,8 +258,7 @@ def gen_update_branch_changes(oldrev, newrev, refname, branch):
         if category:
             c['category'] = unicode(category, encoding=encoding)
 
-        if repository:
-            c['repository'] = unicode(repository, encoding=encoding)
+        c['repository'] = unicode(rconfig['local-remote'], encoding=encoding)
 
         if project:
             c['project'] = unicode(project, encoding=encoding)
@@ -259,11 +267,11 @@ def gen_update_branch_changes(oldrev, newrev, refname, branch):
             c['files'] = files
             changes.append(c)
 
-    if newrev != baserev:
+    if rconfig['newrev'] != rconfig['baserev']:
         # Not a pure rewind
-        f = os.popen("git rev-list --reverse --pretty=oneline %s..%s"
-                % (baserev, newrev), 'r')
-        gen_changes(f, branch)
+        f = os.popen("%(git)s rev-list --reverse --pretty=oneline "
+                     "%(baserev)s..%(newrev)s" % rconfig, 'r')
+        gen_changes(f, rconfig)
 
         status = f.close()
         if status:
@@ -274,28 +282,55 @@ def cleanup(res):
     reactor.stop()
 
 
-def process_changes():
-    # Read branch updates from stdin and generate Change events
+def process_changes(rname,rconfig):
+    # Fetch changes from configured repos and process them
+    logging.debug("Fetching from repo '%s'" % rname)
+
+    # construct git command line
+    rconfig['git'] = "git --git-dir %s" % rconfig['dir']
+    logging.debug("base git command:  %(git)s" % rconfig)
+
+    # run 'git fetch' and parse out any updates
+    f = os.popen("%(git)s fetch -t --all 2>&1" % rconfig)
+    # scrape each output line for changes
     while True:
-        line = sys.stdin.readline()
+        line = f.readline()
         if not line:
             break
 
-        [oldrev, newrev, branch] = line.split(None, 2)
-
-        # Find out if the branch was created, deleted or updated. Branches
-        # being deleted aren't really interesting.
-        if re.match(r"^0*$", newrev):
-            logging.info("Branch `%s' deleted, ignoring" % branch)
-            continue
-        elif re.match(r"^0*$", oldrev):
-            gen_create_branch_changes(newrev, branch, branch)
+        # match line against new branch regex
+        m = newbranchre.match(line)
+        if m:
+            logging.debug("Found new branch output line:  %s" % line)
+            # get latest revision
+            rconfig['branch'] = m.group(1)
+            rconfig['newrev'] = os.popen(
+                "%(git)s --git-dir %(dir)s rev-parse %(branch)s" %
+                rconfig).readline().strip()
+            rconfig['newrev_s'] = rconfig['newrev'][:8]
+            logging.debug("Revision for branch %(branch)s: %(newrev_s)s" %
+                          rconfig)
+            gen_create_branch_changes(rconfig)
         else:
-            gen_update_branch_changes(oldrev, newrev, branch, branch)
+            # match line against update regex
+            m=updatere.match(line)
+            if not m:
+                # no update on this line
+                continue
+
+            logging.debug("Found new commit output line:  %s" % line)
+            (rconfig['oldrev'], rconfig['newrev'], rconfig['branch']) = \
+                m.groups()
+            gen_update_branch_changes(rconfig)
+
+    # run git update-server-info
+    os.popen("%(git)s --git-dir %(dir)s update-server-info" % rconfig).close()
+
+def submit_changes():
 
     # Submit the changes, if any
     if not changes:
-        logging.warning("No changes found")
+        logging.info("No changes found")
         return
 
     host, port = master.split(':')
@@ -315,7 +350,7 @@ def process_changes():
 def parse_options():
     parser = OptionParser()
     parser.add_option("-s", "--changesource", action="store", type="string",
-                      help="Name of change source in config file")
+                      help="Name of change source in config.yaml")
     parser.add_option("-f", "--configfile", action="store", type="string",
                       help="Config file path")
     parser.add_option("-l", "--logfile", action="store", type="string",
@@ -328,8 +363,6 @@ def parse_options():
             help=master_help)
     parser.add_option("-c", "--category", action="store",
                       type="string", help="Scheduler category to notify.")
-    parser.add_option("-r", "--repository", action="store",
-                      type="string", help="Git repository URL to send.")
     parser.add_option("-p", "--project", action="store",
                       type="string", help="Project to send.")
     encoding_help = ("Encoding to use when converting strings to "
@@ -380,15 +413,13 @@ try:
     if options.category:
         category = options.category
 
-    if options.repository:
-        repository = options.repository
-
     if options.project:
         project = options.project
 
     if options.configfile:
         configfile = options.configfile
     config = readconfig(configfile)
+    git_repos = config['git-repos']
 
     if options.changesource:
         changesource = options.changesource
@@ -409,7 +440,11 @@ try:
     if options.encoding:
         encoding = options.encoding
 
-    process_changes()
+    for (rname,rconfig) in git_repos.items():
+        process_changes(rname,rconfig)
+
+    submit_changes()
+
 except SystemExit:
     pass
 except:
