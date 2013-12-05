@@ -20,14 +20,14 @@ if test $REPODIR = ${REPODIR#/}; then   # relative path
     REPODIR="$(readlink -f $(pwd)/../$REPODIR)"
 fi
 
-# on the server side, update the git poller repo for sharing over the
-# web
-
-step-git-web() {
-    cd $POLLER_REPODIR
-    git update-server-info
-}
-
+# git version annoyance
+case "$(git --version | awk '{print $3}')" in
+    1.[0-6].*|1.7.[0-3]*|1.7.[0-3]*.*|1.7.4.[01])
+	# sheesh; want anything before 1.7.4.2.8.g3ccd6, I believe
+	GIT_REMOTE_MIRROR="--mirror" ;;
+    *)
+	GIT_REMOTE_MIRROR="--mirror=fetch" ;;
+esac
 
 # fetch into the repo if it already exists in the 'buildir' subdir;
 # else clone a fresh repo
@@ -35,19 +35,31 @@ step-git-web() {
 step-init() {
     if [ -d $REPODIR ]; then
 	pushd $REPODIR
-	git fetch origin +refs/heads/*:refs/heads/*
-	echo fetched
-	popd
-    else
-	git clone --bare "$GIT_URL" $REPODIR
-	pushd $REPODIR
 	# Force the correct git url
 	#
 	# This is needed if the URL changes, and possibly in differing
-	# versions of git, some that set origin after clone, some that
-	# don't
+	# versions of git:  some set origin after clone, some don't
 	git remote rm origin 2>/dev/null || true
-	git remote add origin "$GIT_URL"
+	git remote add $GIT_REMOTE_MIRROR origin "$repository"
+	# Now fetch as usual
+	set +e
+	git fetch origin -t '+refs/*:refs/*'
+	if test $? != 0 -a "$retry_fetch" != yes; then
+	    # fetch failed; clean out directory and try from scratch
+	    set -e
+	    popd
+	    rm -rf $REPODIR
+	    retry_fetch=yes
+	    echo "fetch failed; retrying"
+	    step-init
+	else
+	    set -e
+	    echo "fetch succeeded"
+	    popd
+	fi
+    else
+	git clone --mirror "$repository" $REPODIR
+	pushd $REPODIR
 	popd
     fi
 }
@@ -130,11 +142,32 @@ step-configure() {
     ./configure $ARGS
 }
 
-# initialize the make process
+# configure the doc build process - use default options here
+
+step-configure-docs() {
+    cd source/src
+    # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
+    if test -f /usr/lib64/tkConfig.sh; then
+	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
+    fi
+    if test -f /usr/lib64/tclConfig.sh; then
+	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
+    fi
+    ./configure $ARGS --enable-build-documentation
+}
+
+# start the make process
 
 step-make() {
     cd source/src
     make V=1
+}
+
+# start the make docs process
+
+step-make-docs() {
+    cd source/src
+    make V=1 docs
 }
 
 # finally, set proper permissions on executables
