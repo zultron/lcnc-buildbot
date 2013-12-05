@@ -1,4 +1,4 @@
-#                                                           -*-conf-*-
+##################################                          -*-yaml-*-
 global:
 # global settings
 #
@@ -7,6 +7,10 @@ global:
 # this is useful for slaves fetching a gitpoller repo over http
   umask: 022
 #
+# slave connection TCP port number
+  slavePortnum: 9989
+#
+##################################
 identity:
 # the 'title' string will appear at the top of this buildbot
 # installation's html.WebStatus home page (linked to the 'titleURL')
@@ -20,41 +24,148 @@ identity:
 # buildbot cannot figure out without some help.
   buildbotURL: http://localhost:8010/
 
+##################################
+db:
+# database URL
+#
+# http://docs.buildbot.net/0.8.5/manual/cfg-global.html#database-specification
+  db_url: sqlite:///state.sqlite
 
+##################################
+slaves:
+# build slave -> password map
+#
+# Slaves commented out will be implemented in the future
+#
+# Passwords may be generated with
+#    apg -M ncl -m 30 -x 30 -n 1
+#
+# Set default parameters for slaves in the DEFAULT slave.  Parameters
+# may be overridden in individual slave definitions.
+  DEFAULT:
+    max_builds: 1
+# Arbitrary properties may be defined in slave definitions.  In this
+# example, three properties double as 'slave classes', used to match
+# slaves to builders; see the builders section below.
+  jessie-rtpreempt-amd64-vm1:
+    secret: *bspasswd*
+    properties:
+      rtos-flavor: rtpreempt
+      arch: amd64
+      distro: jessie
+  raring-xenomai-i386-vm1: *bspasswd*
+    secret: *bspasswd*
+    properties:
+      rtos-flavor: xenomai
+      arch: i386
+      distro: raring
+  raring-xenomai-amd64-vm1: *bspasswd*
+    secret: *bspasswd*
+    properties:
+      rtos-flavor: xenomai
+      arch: amd64
+      distro: raring
+  wheezy-xenomai-armv7l-bbb1:
+    secret: *bspasswd*
+    properties:
+      rtos-flavor: xenomai
+      arch: armv7l
+      distro: wheezy
+
+
+##################################
+schedulers:
+# scheduler configs
+#
+# Basic configuration docs:
+# http://docs.buildbot.net/latest/manual/cfg-schedulers.html#configuring-schedulers
+# AnyBranchScheduler docs:
+# http://docs.buildbot.net/latest/manual/cfg-schedulers.html#anybranchscheduler
+#
+# The 'source' scheduler builds any commit in any branch.
+#
+# A scheduler may be mapped to one or more builders/factories.  The
+# 'builder_factory' parameter is an arbitrary name used in builders'
+# 'factory' parameter to associate each builder to a scheduler.
+#
+# The below 'source' scheduler waits 30 seconds before scheduling the
+# build in case straggler commits arrive that may be combined in one
+# build.
+  source:
+    class: AnyBranchScheduler
+    buildertype: source
+    builder_factory: build
+    treeStableTimer: 30
+  docs:
+    class: AnyBranchScheduler
+    builder_factory: build-docs
+    treeStableTimer: 30
+# The 'packages' scheduler is a 'Dependent' scheduler, and only
+# schedules builds if builds from the 'source' scheduler (above)
+# succeed
+  packages:
+    class: Dependent
+    builder_factory: package
+    upstream: source
+
+##################################
 changesources:
 # changesource configs
 #
 # These settings tell the buildmaster how it should find out about
 # source code changes.
 #
-# Note: there can be only one GitPoller pointing at a given repository
+# The multi-multi-git-poller type change source is really a
+# PBChangeSource that shares configuration with the post-receive.py
+# script run out of cron.
 #
-  glo-ubc3:
-# Poll the configured branch of the configured git repo every 5
-# minutes
+# The first time post-receive.py runs, it clones the 'remote' git repo
+# into the 'dir' location.  Thereafter, it runs 'git fetch', and any
+# changes are passed to the buildbot's PBChangeSource.  It
+# authenticates with the 'user' ID, and pulls the password from the
+# 'auth' section, below.
 #
-# buildbot pre-0.8.8 had no 'branches' list, only a 'branch' argument
-# with one value.
-    type: poller
-    repourl: git://git.linuxcnc.org/git/linuxcnc.git
-    branches:
-      - unified-build-candidate-3
-      - master
-#   branch: unified-build-candidate-3
-    workdir: /home/buildbot/git-repos
-    pollinterval: 300
-    project: ubc
+# post-receive.py can be told to only submit changes that are ancestor
+# commits of some base revision in the 'only-ancestor-of' parameter.
+# This is used to filter for 'Unified Build Candidate' branches in
+# this example.
+#
+# The 'local-remote' parameter is a URL that slaves will fetch from.
+# A web server should be configured to expose the git repo in 'dir'
+# location.  See the 'HOW-TO-local-git-repo' document.
+#
+# The 'revlink' parameter is used by the buildbot web interface to
+# generate a link to the upstream git repository's commit for the
+# users' convenience.  The single '%s' should be replaceable by the
+# SHA1 of the commit to complete the URL.
+#
+# http://docs.buildbot.net/latest/manual/cfg-changesources.html#chsrc-PBChangeSource
 
-schedulers:
-# scheduler configs
-#
-# This is unimplemented.  There should be a dict of schedulername :
-# schedulerconfigdict pairs, of course.  There should also be a way to
-# map builders to schedulers.  As below, I don't understand how these
-# interact yet, so for now, the master config is hacked to add two
-# hard-wired schedulers 'all' and 'force' and all builders to each
-# change source.
+  ubc-repos:
+    type: multi-multi-git-poller
+    user: git-poller
+    git-repos:
+      gh-mhaberler:
+        dir: /home/buildbot/git-repos/gh-mhaberler-linuxcnc.git
+        remote: https://github.com/mhaberler/linuxcnc.git
+        local-remote: http://buildmaster.example.com/git/gh-mhaberler-linuxcnc.git
+        revlink: https://github.com/mhaberler/linuxcnc/commit/%s
+        only-ancestors-of: e31ef6ca
+      gh-zultron:
+        dir: /home/buildbot/git-repos/gh-zultron-linuxcnc.git
+        remote: https://github.com/zultron/linuxcnc.git
+        local-remote: http://buildmaster.example.com/git/gh-zultron-linuxcnc.git
+        revlink: https://github.com/zultron/linuxcnc/commit/%s
+        only-ancestors-of: e31ef6ca
+      glo:
+        dir: /home/buildbot/git-repos/glo-linuxcnc.git
+        remote: git://git.linuxcnc.org/git/linuxcnc.git
+        local-remote: http://buildmaster.example.com/git/glo-linuxcnc.git
+        revlink: http://git.linuxcnc.org/gitweb?p=linuxcnc.git;a=commit;h=%s
+        only-ancestors-of: e31ef6ca
 
+
+##################################
 buildfactories:
 # Build factories with steps
 #
@@ -66,50 +177,20 @@ buildfactories:
 # attribute is 'True', the script will be run on the build master
 # instead of the slaves.
 #
-# The 'source.git' type sets up a buildbot.steps.source.git.Git step.
-# The below example fetches the repo from a (local) URL into the
-# 'repo' subdirectory.
-#
-# To be implemented: there might need to be a map of buildfactories to
-# builderconfigs.  I don't understand how those map together in more
-# complex cases, so for now, every factory will get all builders.
-  ubc:
+  build:
     buildsteps-script: buildsteps.sh
     steps:
-# run a server-side script that updates the gitpoller repo for sharing
-# over http; location of repo will be in $POLLER_REPODIR environment
-# variable
-      - name: git-web
-        description:
-          - updating
-          - git
-          - server
-          - info
-        server-side: True
-        env:
-          POLLER_REPODIR: /d/buildbot/git-repos/linuxcnc.git
-# First attempt at using buildbot's facilities for fetching the git
-# repo
-#      - name: init
-#        type: source.git
-#        description:
-#          - fetching
-#          - (or cloning)
-#          - git repo
-#        repourl: http://build-master.example.com/git/linuxcnc.git
-#        mode: incremental
-#        workdir: repo
-#
-# Fetch the git repo over http.  Pass the 'revision' property and git
-# urls through the environment.
+# The 'init' step runs 'buildsteps.sh init' on the slave.  The script
+# fetches the git repo using the link from the scheduler's
+# 'local-remote' parameter; see above.  The git repo and revision are
+# passed to the script through environment variables.
       - name: init
         description:
           - fetching
           - (or cloning)
           - git repo
-        env:
-          GIT_URL: http://bb0.cf0.zultron.com/git/linuxcnc.git/.git
         env-properties:
+          - repository
           - revision
       - name: sourcetree
         description:
@@ -117,8 +198,11 @@ buildfactories:
           - clean
           - source
           - tree
-# Run sudo dmesg -c with a tty, which some sudo configs require (RH,
-# to avoid cleartext passwords over ssh)
+        env-properties:
+          - revision
+# The 'dmesg' step needs to run sudo, which is configured by default
+# to require a pty on some distros.  Setting 'usePTY' to True
+# allocates a pty.
       - name: dmesg
         usePTY: True
         description:
@@ -153,145 +237,223 @@ buildfactories:
           - read
           - dmesg
           - buffer
+  build-docs:
+    buildsteps-script: buildsteps.sh
+    steps:
+      - name: init
+        description:
+          - fetching
+          - (or cloning)
+          - git repo
+        env-properties:
+          - repository
+          - revision
+      - name: sourcetree
+        description:
+          - unpacking
+          - clean
+          - source
+          - tree
+        env-properties:
+          - revision
+      - name: environment
+        description:
+          - collect
+          - environment
+          - info
+      - name: autogen
+        description:
+          - autogen
+      - name: configure-docs
+        description:
+          - configure
+          - doc
+          - build
+      - name: make-docs
+        description:
+          - make
+          - docs
+  package:
+    buildsteps-script: buildsteps.sh
+    steps:
+      - name: init
+        description:
+          - fetching
+          - (or cloning)
+          - git repo
+        env-properties:
+          - repository
+          - revision
+      - name: sourcetree
+        description:
+          - unpacking
+          - clean
+          - source
+          - tree
+        env-properties:
+          - revision
+      - name: environment
+        description:
+          - collect
+          - environment
+          - info
+      - name: source-rpm
+        description:
+          - build
+          - source
+          - RPM
+      - name: binary-rpm
+        description:
+          - build
+          - binary
+          - RPM
 
 
-slaves:
-# build slave -> password map
-#
-# Slaves commented out will be implemented in the future
-#
-# Passwords may be generated with
-#    apg -M ncl -m 30 -x 30 -n 1
-#
-  jessie-rtpreempt-amd64-vm1: *bspasswd*
-  jessie-rtpreempt-i386-vm1: *bspasswd*
-  jessie-xenomai-amd64-vm1: *bspasswd*
-  jessie-xenomai-i386-vm1: *bspasswd*
-#  precise-rtpreempt-amd64-vm1: *bspasswd*
-#  precise-rtpreempt-i386-vm1: *bspasswd*
-#  precise-xenomai-amd64-vm1: *bspasswd*
-#  precise-xenomai-i386-vm1: *bspasswd*
-  raring-xenomai-amd64-vm1: *bspasswd*
-  raring-xenomai-i386-vm1: *bspasswd*
-#  raring-rtpreempt-amd64-vm1: *bspasswd*
-#  raring-rtpreempt-i386-vm1: *bspasswd*
-  wheezy-xenomai-amd64-vm1: *bspasswd*
-  wheezy-xenomai-i386-vm1: *bspasswd*
-  wheezy-rtpreempt-amd64-vm1: *bspasswd*
-  wheezy-rtpreempt-i386-vm1: *bspasswd*
-  wheezy-xenomai-armv7l-bbb1: *bspasswd*
-#  sl6-rtpreempt-i386-vm1: *bspasswd*
-#  sl6-rtpreempt-amd64-vm1: *bspasswd*
-#  sl6-xenomai-i386-vm1: *bspasswd*
-#  sl6-xenomai-amd64-vm1: *bspasswd*
-#  fc18-rtpreempt-i386-vm1: *bspasswd*
-#  fc18-rtpreempt-amd64-vm1: *bspasswd*
-#  fc18-xenomai-i386-vm1: *bspasswd*
-#  fc18-xenomai-amd64-vm1: *bspasswd*
-#  fc19-xenomai-i386-vm1: *bspasswd*
-#  fc19-xenomai-amd64-vm1: *bspasswd*
-#  fc19-rtpreempt-i386-vm1: *bspasswd*
-#  fc19-rtpreempt-amd64-vm1: *bspasswd*
-#  fc19-rtpreempt-armv7l-bbb1: *bspasswd*
-#  fc20-xenomai-i386-vm1: *bspasswd*
-#  fc20-xenomai-amd64-vm1: *bspasswd*
-#  fc20-rtpreempt-i386-vm1: *bspasswd*
-#  fc20-rtpreempt-amd64-vm1: *bspasswd*
-#  fc20-rtpreempt-armv7l-bbb1: *bspasswd*
-
+##################################
+builders:
 # builder configuration name -> build slave list map
+#
+# builders run one type of job, and there is often a 1:1 relationship
+# with build factories.
+#
+# As with build slaves, defaults may be set in the DEFAULT
+# configuration.
+#
+# The 'slaveclasses' configuration contains a set of class: class-name
+# pairs.  Each slave's 'parameters' configuration will be examined,
+# and it contains all pairs defined in the builder configuration, it
+# is associated with the builder.  For example, the 'fc19-32-rtpreempt' builder 
+#
 # builder configs whose hosts are all commented out above may be defined,
 # and will be skipped
-builderconfigs:
+  DEFAULT:
+    factory: build
+    priority: 50
+# build and run tests:  these builds are distro- and arch-specific; the
+# rtos flavor also must match, except for 'posix' flavor builds, which
+# may be done on both rtpreempt and xenomai machines.
   jessie-rtpreempt-amd64:
-    - jessie-rtpreempt-amd64-vm1
-  jessie-rtpreempt-i386:
-    - jessie-rtpreempt-i386-vm1
-  jessie-xenomai-amd64:
-    - jessie-xenomai-amd64-vm1
-  jessie-xenomai-i386:
-    - jessie-xenomai-i386-vm1
-  precise-rtpreempt-amd64:
-    - precise-rtpreempt-amd64-vm1
-  precise-rtpreempt-i386:
-    - precise-rtpreempt-i386-vm1
-  precise-xenomai-amd64:
-    - precise-xenomai-amd64-vm1
-  precise-xenomai-i386:
-    - precise-xenomai-i386-vm1
-  raring-xenomai-amd64:
-    - raring-xenomai-amd64-vm1
+    slaveclasses:
+      rtos-flavor: rtpreempt
+      arch: amd64
+      distro: jessie
+  jessie-posix-amd64:
+    slaveclasses:
+      arch: amd64
+      distro: jessie
   raring-xenomai-i386:
-    - raring-xenomai-i386-vm1
-  raring-rtpreempt-amd64:
-    - raring-rtpreempt-amd64-vm1
-  raring-rtpreempt-i386:
-    - raring-rtpreempt-i386-vm1
-  wheezy-xenomai-amd64:
-    - wheezy-xenomai-amd64-vm1
-  wheezy-rtpreempt-amd64:
-    - wheezy-rtpreempt-amd64-vm1
-  wheezy-xenomai-i386:
-    - wheezy-xenomai-i386-vm1
-  wheezy-rtpreempt-i386:
-    - wheezy-rtpreempt-i386-vm1
+    slaveclasses:
+      rtos-flavor: xenomai
+      arch: i386
+      distro: raring
+  raring-posix-i386:
+    slaveclasses:
+      arch: i386
+      distro: raring
+  raring-xenomai-amd64:
+    slaveclasses:
+      rtos-flavor: xenomai
+      arch: amd64
+      distro: raring
+  raring-posix-amd64:
+    slaveclasses:
+      arch: amd64
+      distro: raring
   wheezy-xenomai-armv7l:
-    - wheezy-xenomai-armv7l-bbb1
-  fc18-posix-i386:
-    - fc18-i386-xenomai-vm1
-    - fc18-i386-rtpreempt-vm1
-  fc18-posix-amd64:
-    - fc18-amd64-xenomai-vm1
-    - fc18-amd64-rtpreempt-vm1
-  fc19-posix-i386:
-    - fc19-i386-xenomai-vm1
-    - fc19-i386-rtpreempt-vm1
-  fc19-posix-amd64:
-    - fc19-amd64-xenomai-vm1
-    - fc19-amd64-rtpreempt-vm1
-  sl6-posix-i386:
-    - sl6-i386-xenomai-vm1
-    - sl6-i386-rtpreempt-vm1
-  sl6-posix-amd64:
-    - sl6-amd64-xenomai-vm1
-    - sl6-amd64-rtpreempt-vm1
-  fc18-rtpreempt-i386:
-    - fc18-i386-rtpreempt-vm1
-  fc18-rtpreempt-amd64:
-    - fc18-amd64-rtpreempt-vm1
-  fc19-rtpreempt-i386:
-    - fc19-i386-rtpreempt-vm1
-  fc19-rtpreempt-amd64:
-    - fc19-amd64-rtpreempt-vm1
-  sl6-rtpreempt-i386:
-    - sl6-i386-rtpreempt-vm1
-  sl6-rtpreempt-amd64:
-    - sl6-amd64-rtpreempt-vm1
-  fc18-xenomai-i386:
-    - fc18-i386-xenomai-vm1
-  fc18-xenomai-amd64:
-    - fc18-amd64-xenomai-vm1
-  fc19-xenomai-i386:
-    - fc19-i386-xenomai-vm1
-  fc19-xenomai-amd64:
-    - fc19-amd64-xenomai-vm1
-  sl6-xenomai-i386:
-    - sl6-i386-xenomai-vm1
-  sl6-xenomai-amd64:
-    - sl6-amd64-xenomai-vm1
-  fc18-xenomai_kernel-i386:
-    - fc18-i386-xenomai-vm1
-  fc18-xenomai_kernel-amd64:
-    - fc18-amd64-xenomai-vm1
-  fc19-xenomai_kernel-i386:
-    - fc19-i386-xenomai-vm1
-  fc19-xenomai_kernel-amd64:
-    - fc19-amd64-xenomai-vm1
-  sl6-xenomai_kernel-i386:
-    - sl6-i386-xenomai-vm1
-  sl6-xenomai_kernel-amd64:
-    - sl6-amd64-xenomai-vm1
+    slaveclasses:
+      rtos-flavor: xenomai
+      arch: armv70
+      distro: wheezy
+  wheezy-posix-armv7l:
+    slaveclasses:
+      arch: armv70
+      distro: wheezy
+# build documentation: this is distro-specific only, and may be run on
+# a host with any RT kernel and any architecture; in this example,
+# 'raring-docs' will be matched to two slaves, raring-xenomai-i386-vm1
+# and raring-xenomai-amd64-vm1.
+  jessie-docs:
+    slaveclasses:
+      distro: jessie
+    factory: build-docs
+    priority: 60
+  raring-docs:
+    slaveclasses:
+      distro: raring
+    factory: build-docs
+    priority: 60
+  wheezy-docs:
+    slaveclasses:
+      distro: wheezy
+    factory: build-docs
+    priority: 60
+# build packages: in Debian, this is distro- and arch-specific, but
+# does not depend on the running kernel, although the various RT
+# flavors' development environment must be installed.  (In Red Hat,
+# x86 32-bit and 64-bit are built on the same host, so only 64-bit
+# hosts may build packages.)
+  jessie-amd64-packages:
+    slaveclasses:
+      distro: jessie
+      arch: amd64
+    factory: package
+    priority: 70
+  jessie-i386-packages:
+    slaveclasses:
+      distro: jessie
+      arch: i386
+    factory: package
+    priority: 70
+  raring-amd64-packages:
+    slaveclasses:
+      distro: raring
+      arch: amd64
+    factory: package
+    priority: 70
+  raring-i386-packages:
+    slaveclasses:
+      distro: raring
+      arch: i386
+    factory: package
+    priority: 70
+  wheezy-amd64-packages:
+    slaveclasses:
+      distro: wheezy
+      arch: amd64
+    factory: package
+    priority: 70
+  wheezy-i386-packages:
+    slaveclasses:
+      distro: wheezy
+      arch: i386
+    factory: package
+    priority: 70
 
-# user ID -> password map
+##################################
 auth:
+# user ID -> password map
+#
+# The list of users and passwords.
+#
+# The multi-multi-git-poller configuration specifies a user ID that
+# must be present here.
   user1: *bspasswd*
+  git-poller:  *bspasswd*
+
+##################################
+status:
+# Web status interface configuration
+  webstatus:
+    class: WebStatus
+    http_port: 8010
+    order_console_by_time: True
+    authz:
+      class: BasicAuth
+      gracefulShutdown: True
+      forceBuild: 'auth'
+      forceAllBuilds: True
+      pingBuilder: True
+      stopBuild: True
+      stopAllBuilds: True
+      cancelPendingBuild: True
+

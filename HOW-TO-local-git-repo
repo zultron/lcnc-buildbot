@@ -1,39 +1,62 @@
-When the upstream git repo is on the other side of a low-bandwidth
-connection, it may be desirable to mirror it just once, and configure
-slaves to fetch from that repo during a build.
+Upstream git repos are usually on the other side of a low-bandwidth
+connection.  In this case it is desirable to run just one mirror
+across the slow link, and configure slaves to fetch from the local
+mirror over the fast local network during a build.
 
-In the config.yaml file (see the sample 'config.yaml.sample'),
-configure the upstream repo in the change source's 'repourl'
-parameter.  In the example, the 'glo-ubc3' change source is set to
-poll the linuxcnc.org git server.  Choose a 'workdir' suitable for
-access by the web server.
+In the config.yaml file (see the sample 'config.yaml.sample'), create
+a configuration in the 'changesources' section of type
+'multi-multi-git-poller'.  It must have a username in the 'user'
+parameter that matches an entry in the 'auth' section.
 
-By default, 'buildmaster' creates the repo without read permission for
-the others.  A suitable umask must be set so that apache has read
-access to the git repo, maybe 022.  For pre-0.8.8, set the 'umask'
-parameter in the 'global' setting of config.yaml, as in the sample
-file.  For 0.8.8 on, set it on the provided line in buildbot.tac.
+One or more remote git repositories may be configured here.  Each
+repository may have these parameters:
 
-In 0.8.8, the build master fetches branches into
-'buildbot/<giturl>/<branch>' rather than 'refs/heads/<branch>'.  I
-don't know how to deal with this yet.
+  remote:  The URL of the remote git repo
 
-Because apache doesn't understand git, auxiliary files must be
-generated to help clients discover references.  See the 'git-web' step
-in the sample config, which runs 'git update-server-info' on the build
-master before each new build.
+  dir:  The path to the directory on the build master where the remote
+  git repo will be mirrored.  This directory should be writable by the
+  user who owns the poller cron job, and readable by apache.
+
+  local-remote: A URL that must be accessible to the build slaves
+  exposing the local repo mirror in the 'git' directory.  See below
+  for a sample Apache configuration.
+
+  revlink: (optional) A URL pattern that, when the '%s' substring is
+  replaced with a SHA1 revision, points to the commit in the remote
+  git repo's web interface.  The sample config file contains examples
+  for github and gitweb.
+
+  only-ancestors-of: (optional) An ancestor revision that incoming
+  changes will be checked against; if the incoming change is not a
+  descendant of the revision, it will be ignored.  This is used to
+  filter out 'Unified Build Candidate' branches in this example, whose
+  build factories are different from other branches.
+
+A cron job must be set up to run the 'post-receive.py' script
+periodically, e.g. every five minutes.  That script reads
+configuration from the config.yaml file.  When it runs, it will
+attempt to create any repo mirror that does not already exist.  For
+existing repo mirrors, it will run 'git fetch' to update the local
+mirror, and feed any updates to the build master.  Here is a sample
+crontab that may be run as the 'buildbot' or any other user, and polls
+remote repos every five minutes:
+
+  SHELL=/bin/sh
+
+  SCRIPT=/home/buildbot/lcnc-buildbot/post-receive.py
+  LOG=/home/buildbot/log/git-post-receive.log
+  CONFIG=/home/buildbot/lcnc-buildbot/config.yaml
+
+  0-59/5 * * * * python $SCRIPT -f $CONFIG -l $LOG -vv
 
 The local build master runs a web server exposing the local
-repo.  The below Apache configuration follows the sample config, where
+repos.  The below Apache configuration follows the sample config, where
 the change source 'workdir' is /home/buildbot/git-repos:
 
-Alias /git /home/buildbot/git-repos
-<Directory /home/buildbot/git-repos>
+  Alias /git /home/buildbot/git-repos
+  <Directory /home/buildbot/git-repos>
         Options Indexes
         Order Allow,Deny
         Allow from all
-</Directory>
+  </Directory>
 
-In the build factory configuration, add a step to fetch from the above
-repo.  In the example, the 'init' step fetches from the build master
-at the URI directory configured in the 'Alias' above.

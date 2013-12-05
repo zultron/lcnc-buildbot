@@ -191,6 +191,12 @@ step-closeout() {
     dmesg
 }
 
+# create the SRPM
+
+step-source-rpm() {
+    :
+}
+
 step-$step; res=$?
 
 echo "step $step exited with status $res" 1>&2
