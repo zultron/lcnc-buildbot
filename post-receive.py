@@ -279,6 +279,16 @@ def cleanup(res):
     reactor.stop()
 
 
+def check_ancestor(rconfig):
+    # Return True if ref is a descendent of ancestor
+    rconfig['merge_base'] = os.popen(
+        "%(git)s merge-base %(ancestor)s %(newrev)s" %
+        rconfig).readline().strip()
+    rconfig['merge_base_s'] = rconfig['merge_base'][:8]
+    logging.debug("found merge_base %(merge_base_s)s for ref "
+                  "%(newrev_s)s and ancestor %(ancestor_s)s" % rconfig)
+    return rconfig['merge_base'] == rconfig['ancestor']
+
 def process_changes(rname,rconfig):
     # Fetch changes from configured repos and process them
     logging.debug("Fetching from repo '%s'" % rname)
@@ -286,6 +296,15 @@ def process_changes(rname,rconfig):
     # construct git command line
     rconfig['git'] = "git --git-dir %s" % rconfig['dir']
     logging.debug("base git command:  %(git)s" % rconfig)
+
+    # if the only-ancestors-of param exists, get the full SHA1
+    if rconfig.has_key('only-ancestors-of'):
+        rconfig['ancestor'] = os.popen(
+            "%(git)s rev-parse %(only-ancestors-of)s" %
+                rconfig).readline().strip()
+        rconfig['ancestor_s'] = rconfig['ancestor'][:8]
+        logging.debug("Filtering commits with ancestor %(ancestor_s)s" %
+                      rconfig)
 
     # run 'git fetch' and parse out any updates
     f = os.popen("%(git)s fetch -t --all 2>&1" % rconfig)
@@ -307,6 +326,9 @@ def process_changes(rname,rconfig):
             rconfig['newrev_s'] = rconfig['newrev'][:8]
             logging.debug("Revision for branch %(branch)s: %(newrev_s)s" %
                           rconfig)
+            if not check_ancestor(rconfig):
+                logging.debug("Pedigree failed check; skipping commit")
+                continue
             gen_create_branch_changes(rconfig)
         else:
             # match line against update regex
@@ -318,6 +340,12 @@ def process_changes(rname,rconfig):
             logging.debug("Found new commit output line:  %s" % line)
             (rconfig['oldrev'], rconfig['newrev'], rconfig['branch']) = \
                 m.groups()
+            rconfig['oldrev_s'] = rconfig['oldrev'][:8]
+            rconfig['newrev_s'] = rconfig['newrev'][:8]
+
+            if not check_ancestor(rconfig):
+                logging.debug("Pedigree failed check; skipping commit")
+                continue
             gen_update_branch_changes(rconfig)
 
     # run git update-server-info
