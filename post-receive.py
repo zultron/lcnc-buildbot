@@ -279,6 +279,47 @@ def cleanup(res):
     reactor.stop()
 
 
+def create_repo(rconfig):
+    # Check the repo is already created; if so, return True; if not,
+    # create & return False
+    created = True
+    direxists = False
+    try:
+        os.chdir(rconfig['dir'])
+    except OSError, e:
+        if e.errno == 2:
+            # no such file or directory
+            created = False
+    if created:
+        # Be sure there's a get repo in the directory
+        res = os.popen(
+            "%(git)s config -l >/dev/null 2>&1" % rconfig, 'r').close()
+        if res is not None:
+            created = False
+            direxists = True
+    if created:
+        logging.debug("git repo exists in %(dir)s" % rconfig)
+        return True
+
+    # Repo does not exist and needs to be cloned
+    logging.info("no git repo in directory %(dir)s; cloning" % rconfig)
+    # Create the directory; throw an exception if it can't be done
+    if not direxists:
+        os.makedirs(rconfig['dir'])
+    # Run git clone
+    f = os.popen(
+        "%(git)s clone --mirror -q %(remote)s %(dir)s 2>&1" % rconfig, 'r')
+    while True:
+        line = f.readline()
+        if line:
+            logging.info(line)
+        else:
+            break
+    res = (f.close() or 0)
+    logging.info("git clone exited with status %s" % res)
+    return False
+
+
 def check_ancestor(rconfig):
     # Return True if ref is a descendent of ancestor
     rconfig['merge_base'] = os.popen(
@@ -296,6 +337,11 @@ def process_changes(rname,rconfig):
     # construct git command line
     rconfig['git'] = "git --git-dir %s" % rconfig['dir']
     logging.debug("base git command:  %(git)s" % rconfig)
+
+    # If the repo has not been created, do so and return, processing
+    # no changes
+    if not create_repo(rconfig):
+        return
 
     # if the only-ancestors-of param exists, get the full SHA1
     if rconfig.has_key('only-ancestors-of'):
@@ -348,8 +394,12 @@ def process_changes(rname,rconfig):
                 continue
             gen_update_branch_changes(rconfig)
 
+    # run git prune origin to remove any local branches removed on
+    # remote
+    os.popen("%(git)s remote prune origin" % rconfig).close()
+
     # run git update-server-info
-    os.popen("%(git)s --git-dir %(dir)s update-server-info" % rconfig).close()
+    os.popen("%(git)s update-server-info" % rconfig).close()
 
 def submit_changes():
 
