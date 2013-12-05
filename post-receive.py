@@ -281,15 +281,7 @@ def process_changes():
         if not line:
             break
 
-        [oldrev, newrev, refname] = line.split(None, 2)
-
-        # We only care about regular heads, i.e. branches
-        m = re.match(r"^refs\/heads\/(.+)$", refname)
-        if not m:
-            logging.info("Ignoring refname `%s': Not a branch" % refname)
-            continue
-
-        branch = m.group(1)
+        [oldrev, newrev, branch] = line.split(None, 2)
 
         # Find out if the branch was created, deleted or updated. Branches
         # being deleted aren't really interesting.
@@ -404,7 +396,7 @@ try:
     if options.username:
         username = options.username
     else:
-        username = config['changesources'][changesource].get(
+        username = config['change_source'][changesource].get(
             'user',username)
 
     if options.auth:
