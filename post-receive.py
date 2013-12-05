@@ -59,9 +59,6 @@ username = "git"
 configfile = os.sep.join((os.path.dirname(os.path.abspath(__file__)),
                           'config.yaml'))
 
-# Change source name from config file
-changesource = "local-repos"
-
 # Repos from config file
 git_repos = {}
 
@@ -349,8 +346,6 @@ def submit_changes():
 
 def parse_options():
     parser = OptionParser()
-    parser.add_option("-s", "--changesource", action="store", type="string",
-                      help="Name of change source in config.yaml")
     parser.add_option("-f", "--configfile", action="store", type="string",
                       help="Config file path")
     parser.add_option("-l", "--logfile", action="store", type="string",
@@ -419,15 +414,16 @@ try:
     if options.configfile:
         configfile = options.configfile
     config = readconfig(configfile)
-    git_repos = config['git-repos']
+    changesources = config['change_source']
+    for (key,val) in changesources.items():
+        if val.get('type',None) == 'multi-multi-git-poller':
+            changesource = val
+            git_repos = changesource.get('git-repos',{})
 
-    if options.changesource:
-        changesource = options.changesource
-        
     if options.username:
         username = options.username
     else:
-        username = config['change_source'][changesource].get(
+        username = changesource.get(
             'user',username)
 
     if options.auth:
