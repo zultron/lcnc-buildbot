@@ -42,14 +42,13 @@ step-init() {
 	git remote rm origin 2>/dev/null || true
 	git remote add $GIT_REMOTE_MIRROR origin "$repository"
 	# Now fetch as usual
-	set +e
-	git fetch origin -t '+refs/*:refs/*'
-	if test $? != 0 -a "$retry_fetch" != yes; then
-	    # fetch failed; clean out directory and try from scratch
-	    set -e
+	if ! git fetch origin -t '+refs/*:refs/*' ||
+	    ! git log -1 $revision; then
+	    # either fetch command failed or it succeded but the
+	    # needed revision isn't available; clean out directory and
+	    # try from scratch
 	    popd
 	    rm -rf $REPODIR
-	    retry_fetch=yes
 	    echo "fetch failed; retrying"
 	    step-init
 	else
@@ -59,8 +58,6 @@ step-init() {
 	fi
     else
 	git clone --mirror "$repository" $REPODIR
-	pushd $REPODIR
-	popd
     fi
 }
 
