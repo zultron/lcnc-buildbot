@@ -289,9 +289,9 @@ def process_changes():
             logging.info("Branch `%s' deleted, ignoring" % branch)
             continue
         elif re.match(r"^0*$", oldrev):
-            gen_create_branch_changes(newrev, refname, branch)
+            gen_create_branch_changes(newrev, branch, branch)
         else:
-            gen_update_branch_changes(oldrev, newrev, refname, branch)
+            gen_update_branch_changes(oldrev, newrev, branch, branch)
 
     # Submit the changes, if any
     if not changes:
