@@ -77,10 +77,8 @@ slaves:
 schedulers:
 # scheduler configs
 #
-# Basic configuration docs:
+# Scheduler configuration docs:
 # http://docs.buildbot.net/latest/manual/cfg-schedulers.html#configuring-schedulers
-# AnyBranchScheduler docs:
-# http://docs.buildbot.net/latest/manual/cfg-schedulers.html#anybranchscheduler
 #
 # The 'source' scheduler builds any commit in any branch.
 #
@@ -107,6 +105,13 @@ schedulers:
     class: Dependent
     builder_factory: package
     upstream: source
+# The following allow builds to be forced from the Web UI
+  source-force:
+    class: ForceScheduler
+    builder_factory: build
+  docs-force:
+    class: ForceScheduler
+    builder_factory: build-docs
 
 ##################################
 changesources:
