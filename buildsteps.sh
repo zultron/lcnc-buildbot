@@ -101,13 +101,13 @@ step-environment() {
 	lsb_release --all; 
 	echo; 
     else
-	    # what does this do, and how to replicate on RH?
-	    # (RH has lsb, but the package drags in a whole X environment)
-	: # do nothing
+	cat /etc/redhat-release
     fi
     echo 'lsmod:'; 
     lsmod; 
     echo; 
+    echo 'env:';
+    env;
     if test -x /bin/rpm; then
 	echo "rpm -qa:"
 	rpm -qa
