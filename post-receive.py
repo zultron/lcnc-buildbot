@@ -73,8 +73,8 @@ encoding = 'utf8'
 # git fetch output prints updates in lines like this:
 #  * [new branch]      bar        -> bar
 #  + a1576ed...2a22233 foo        -> foo  (forced update)
-updatere=re.compile(r'^ \+ ([^. ]+)\.\.\.([^. ]+) +([^ ]+) .*')
-newbranchre=re.compile(r'^ \* \[new branch\] +([^ ]+) .*')
+updatere=re.compile(r'^(?: \+ )?([^. ]+)\.\.\.?([^. ]+) +([^ ]+) .*')
+newbranchre=re.compile(r'^ ?\* \[new branch\] +([^ ]+) .*')
 
 
 changes = []
@@ -90,7 +90,6 @@ def connectFailed(error):
 
 
 def addChanges(remote, changei, src='git'):
-    logging.debug("addChanges %s, %s" % (repr(remote), repr(changei)))
     def addChange(c):
         logging.info("New revision: %s" % c['revision'][:8])
         for key, value in c.iteritems():
@@ -244,7 +243,12 @@ def gen_update_branch_changes(rconfig):
             if not line:
                 break
 
-            file = re.match(r"^:.*[MAD]\s+(.+)$", line).group(1)
+            m = re.match(r"^:.*[MAD]\s+(.+)$", line)
+            if m is None:
+                logging.error("output does not match regex: %s" % line)
+                continue
+
+            file = m.group(1)
             logging.debug("  Rewound file: %s" % file)
             files.append(unicode(file, encoding=encoding))
 
@@ -341,6 +345,7 @@ def process_changes(rname,rconfig):
     # If the repo has not been created, do so and return, processing
     # no changes
     if not create_repo(rconfig):
+        logging.debug("base repo not created; doing nothing")
         return
 
     # if the only-ancestors-of param exists, get the full SHA1
@@ -353,17 +358,20 @@ def process_changes(rname,rconfig):
                       rconfig)
 
     # run 'git fetch' and parse out any updates
-    f = os.popen("%(git)s fetch -t --all 2>&1" % rconfig)
+    cmd = "%(git)s fetch -t --all 2>&1" % rconfig
+    f = os.popen(cmd)
+    logging.debug("Running '%s'" % cmd)
     # scrape each output line for changes
     while True:
-        line = f.readline()
+        line = f.readline().strip()
         if not line:
+            logging.debug("Found final empty line")
             break
 
         # match line against new branch regex
         m = newbranchre.match(line)
         if m:
-            logging.debug("Found new branch output line:  %s" % line)
+            logging.debug("Found new branch output line:  '%s'" % line)
             # get latest revision
             rconfig['branch'] = m.group(1)
             rconfig['newrev'] = os.popen(
@@ -376,14 +384,12 @@ def process_changes(rname,rconfig):
                 logging.debug("Pedigree failed check; skipping commit")
                 continue
             gen_create_branch_changes(rconfig)
-        else:
-            # match line against update regex
-            m=updatere.match(line)
-            if not m:
-                # no update on this line
-                continue
+            continue
 
-            logging.debug("Found new commit output line:  %s" % line)
+        # match line against update regex
+        m = updatere.match(line)
+        if m:
+            logging.debug("Found new commit output line:  '%s'" % line)
             (rconfig['oldrev'], rconfig['newrev'], rconfig['branch']) = \
                 m.groups()
             rconfig['oldrev_s'] = rconfig['oldrev'][:8]
@@ -393,6 +399,9 @@ def process_changes(rname,rconfig):
                 logging.debug("Pedigree failed check; skipping commit")
                 continue
             gen_update_branch_changes(rconfig)
+            continue
+
+        logging.debug("Found line with no matches:  %s" % line)
 
     # run git prune origin to remove any local branches removed on
     # remote
@@ -400,6 +409,8 @@ def process_changes(rname,rconfig):
 
     # run git update-server-info
     os.popen("%(git)s update-server-info" % rconfig).close()
+
+    logging.debug("Finished branch changes, pruning and updating server info")
 
 def submit_changes():
 
@@ -509,7 +520,8 @@ try:
     else:
         auth = config['auth'][username]
 
-    logging.debug("Username: %s; passwd: %s[...]" % (username,auth[:3]))
+    logging.debug("Buildbot username: %s; passwd: %s[...]" % \
+                      (username,auth[:3]))
 
     if options.encoding:
         encoding = options.encoding
