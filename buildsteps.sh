@@ -182,6 +182,9 @@ step-setuid() {
 step-runtests() {
     cd source
     source ./scripts/rip-environment
+    # help ensure a previous crashed session doesn't interfere
+    realtime stop || true
+    echo "flavor: $(flavor)"
     runtests -v
 }
 
