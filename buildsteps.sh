@@ -104,6 +104,8 @@ step-environment() {
     else
 	cat /etc/redhat-release
     fi
+    echo 'ulimit -a:'
+    ulimit -a
     echo 'lsmod:'; 
     lsmod; 
     echo; 
