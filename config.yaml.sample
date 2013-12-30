@@ -10,6 +10,13 @@ global:
 # slave connection TCP port number
   slavePortnum: 9989
 #
+# Names of properties to pass through environment to all
+# builders/buildsteps
+  env-properties:
+    - repository
+    - revision
+    - buildername
+#
 ##################################
 identity:
 # the 'title' string will appear at the top of this buildbot
@@ -182,29 +189,26 @@ buildfactories:
 # attribute is 'True', the script will be run on the build master
 # instead of the slaves.
 #
+# An optional 'env-properties' list of property names will be added to
+# the build step's environment along with the global 'env-properties'
+# list.
   build:
     buildsteps-script: buildsteps.sh
     steps:
 # The 'init' step runs 'buildsteps.sh init' on the slave.  The script
 # fetches the git repo using the link from the scheduler's
-# 'local-remote' parameter; see above.  The git repo and revision are
-# passed to the script through environment variables.
+# 'local-remote' parameter; see above.
       - name: init
         description:
           - fetching
           - (or cloning)
           - git repo
-        env-properties:
-          - repository
-          - revision
       - name: sourcetree
         description:
           - unpacking
           - clean
           - source
           - tree
-        env-properties:
-          - revision
 # The 'dmesg' step needs to run sudo, which is configured by default
 # to require a pty on some distros.  Setting 'usePTY' to True
 # allocates a pty.
@@ -250,17 +254,12 @@ buildfactories:
           - fetching
           - (or cloning)
           - git repo
-        env-properties:
-          - repository
-          - revision
       - name: sourcetree
         description:
           - unpacking
           - clean
           - source
           - tree
-        env-properties:
-          - revision
       - name: environment
         description:
           - collect
@@ -286,17 +285,12 @@ buildfactories:
           - fetching
           - (or cloning)
           - git repo
-        env-properties:
-          - repository
-          - revision
       - name: sourcetree
         description:
           - unpacking
           - clean
           - source
           - tree
-        env-properties:
-          - revision
       - name: environment
         description:
           - collect
