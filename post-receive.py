@@ -73,7 +73,7 @@ encoding = 'utf8'
 # git fetch output prints updates in lines like this:
 #  * [new branch]      bar        -> bar
 #  + a1576ed...2a22233 foo        -> foo  (forced update)
-updatere=re.compile(r'^(?: \+ )?([^. ]+)\.\.\.?([^. ]+) +([^ ]+) .*')
+updatere=re.compile(r'^(?:\+ )?([^. ]+)\.\.\.?([^. ]+) +([^ ]+) .*')
 newbranchre=re.compile(r'^ ?\* \[new branch\] +([^ ]+) .*')
 
 
@@ -401,7 +401,7 @@ def process_changes(rname,rconfig):
             gen_update_branch_changes(rconfig)
             continue
 
-        logging.debug("Found line with no matches:  %s" % line)
+        logging.debug("Found line with no matches:  '%s'" % line)
 
     # run git prune origin to remove any local branches removed on
     # remote
