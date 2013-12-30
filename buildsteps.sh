@@ -81,6 +81,7 @@ step-dmesg() {
 # report some useful info back to the buildmaster
 
 step-environment() {
+    set +x
     echo 'uname -a:'; 
     uname -a; 
     echo; 
@@ -106,13 +107,10 @@ step-environment() {
     echo 'lsmod:'; 
     lsmod; 
     echo; 
-    echo 'env:';
-    env;
     if test -x /bin/rpm; then
 	echo "rpm -qa:"
 	rpm -qa
     elif test -x /usr/bin/dpkg; then
-	    # Ubuntu
 	echo 'dpkg --get-selections:'; 
 	dpkg --get-selections;
     fi
