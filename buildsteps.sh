@@ -182,6 +182,18 @@ step-runtests() {
     source ./scripts/rip-environment
     # help ensure a previous crashed session doesn't interfere
     realtime stop || true
+    # Force the flavor for runtests
+    case "$buildername" in
+	*-posix) FLAVOR=posix ;;
+	*-rtpreempt) FLAVOR=rt-preempt ;;
+	*-xenomai) FLAVOR=xenomai ;;
+	*-xenomai_kernel) FLAVOR=xenomai-kernel ;;
+	*-rtai_kernel) FLAVOR=rtai-kernel ;;
+	'')  echo "buildername is unset!" 1>&2; exit 1 ;;
+	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
+    esac
+    export FLAVOR
+
     echo "flavor: $(flavor)"
     runtests -v
 }
