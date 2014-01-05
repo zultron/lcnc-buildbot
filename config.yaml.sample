@@ -16,6 +16,9 @@ global:
     - repository
     - revision
     - buildername
+## environment variables to pass to builders
+  env:
+    CCACHE_DIR: /var/lib/buildslave/ccache
 #
 ##################################
 identity:
