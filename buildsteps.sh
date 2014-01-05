@@ -182,8 +182,6 @@ step-setuid() {
 step-runtests() {
     cd source
     source ./scripts/rip-environment
-    # help ensure a previous crashed session doesn't interfere
-    realtime stop || true
     # Force the flavor for runtests
     case "$buildername" in
 	*-posix) FLAVOR=posix ;;
@@ -195,6 +193,9 @@ step-runtests() {
 	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
     esac
     export FLAVOR
+
+    # help ensure a previous crashed session doesn't interfere
+    realtime stop || true
 
     echo "flavor: $(flavor)"
     runtests -v
