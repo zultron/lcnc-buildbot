@@ -194,6 +194,9 @@ step-runtests() {
     esac
     export FLAVOR
 
+    # for debugging
+    env
+
     # help ensure a previous crashed session doesn't interfere
     realtime stop || true
 
