@@ -100,7 +100,8 @@ step-environment() {
     echo 'python -V:'; 
     python -V; 
     echo; 
-    if test -x /usr/bin/xenomai-gid-ctl; then
+    if test ${buildername} != ${buildername%xenomai} -a \
+	-x /usr/bin/xenomai-gid-ctl; then
 	echo "xenomai-gid-ctl test:"
 	/usr/bin/xenomai-gid-ctl test
     fi
