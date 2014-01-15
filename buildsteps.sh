@@ -209,6 +209,16 @@ step-runtests() {
     realtime stop || true
 
     echo "flavor: $(flavor)"
+
+    # FIXME testing xenomai
+    if test ${buildername} != ${buildername%xenomai}; then
+	# turn on debugging for xenomai builders; this will fail, but
+	# will expose extra debug messages to help locate the problem
+	tail -F tests/abs.0/stderr & TAIL_PID=$!
+	DEBUG=5 MSGD_OPTS=-s runtests -v tests/abs.0 || true
+	kill $TAIL_PID
+    fi
+
     runtests -v
 }
 
