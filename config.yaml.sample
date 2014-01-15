@@ -99,29 +99,52 @@ schedulers:
 # The below 'source' scheduler waits 30 seconds before scheduling the
 # build in case straggler commits arrive that may be combined in one
 # build.
-  source:
-    class: AnyBranchScheduler
-    buildertype: source
+#   source:
+#     class: AnyBranchScheduler
+#     buildertype: source
+#     builder_factory: build
+#     treeStableTimer: 30
+#   docs:
+#     class: AnyBranchScheduler
+#     builder_factory: build-docs
+#     treeStableTimer: 30
+# # The 'packages' scheduler is a 'Dependent' scheduler, and only
+# # schedules builds if builds from the 'source' scheduler (above)
+# # succeed
+#   packages:
+#     class: Dependent
+#     builder_factory: package
+#     upstream: source
+# # The following allow builds to be forced from the Web UI
+#   source-force:
+#     class: ForceScheduler
+#     builder_factory: build
+#   docs-force:
+#     class: ForceScheduler
+#     builder_factory: build-docs
+#
+# The following schedulers are 'triggered' from the 'checkin' build
+# factory.
+  source-trig:
+    class: Triggerable
     builder_factory: build
-    treeStableTimer: 30
-  docs:
-    class: AnyBranchScheduler
+  docs-trig:
+    class: Triggerable
     builder_factory: build-docs
-    treeStableTimer: 30
-# The 'packages' scheduler is a 'Dependent' scheduler, and only
-# schedules builds if builds from the 'source' scheduler (above)
-# succeed
-  packages:
-    class: Dependent
+  packages-trig:
+    class: Triggerable
     builder_factory: package
-    upstream: source
-# The following allow builds to be forced from the Web UI
-  source-force:
+# The 'checkin' scheduler is the main entry point for a new change
+# set.  It is associated with the 'checkin' builder, which 'triggers'
+# the above schedulers as separate build steps.
+  checkin:
+    class: AnyBranchScheduler
+    builder_factory: checkin
+    treeStableTimer: 10
+# The force scheduler allow builds to be forced from the Web UI.
+  force:
     class: ForceScheduler
-    builder_factory: build
-  docs-force:
-    class: ForceScheduler
-    builder_factory: build-docs
+    builder_factory: checkin
 
 ##################################
 changesources:
@@ -195,6 +218,29 @@ buildfactories:
 # An optional 'env-properties' list of property names will be added to
 # the build step's environment along with the global 'env-properties'
 # list.
+#
+# The 'checkin' build factory is a sort of meta-build factory.  Its
+# build steps 'trigger' other schedulers that run other build
+# factories.
+  checkin:
+    steps:
+      - name: trigger-source
+        type: trigger
+        schedulerNames:
+          - source-trig
+        waitForFinish: True
+      - name: trigger-docs
+        type: trigger
+        schedulerNames:
+          - docs-trig
+        waitForFinish: True
+      - name: trigger-packages
+        type: trigger
+        schedulerNames:
+          - packages-trig
+        waitForFinish: True
+#
+# The 'build' build factory compiles the code from source.
   build:
     buildsteps-script: buildsteps.sh
     steps:
@@ -249,6 +295,8 @@ buildfactories:
           - read
           - dmesg
           - buffer
+#
+# The 'build-docs' factory builds documentation.
   build-docs:
     buildsteps-script: buildsteps.sh
     steps:
@@ -280,6 +328,8 @@ buildfactories:
         description:
           - make
           - docs
+#
+# The 'package' factory builds packages.
   package:
     buildsteps-script: buildsteps.sh
     steps:
@@ -331,6 +381,12 @@ builders:
   DEFAULT:
     factory: build
     priority: 50
+#
+# The 'checkin' builder associates the 'checkin' scheduler with the
+# 'checkin' build factory.
+  checkin:
+    factory: checkin
+#
 # build and run tests:  these builds are distro- and arch-specific; the
 # rtos flavor also must match, except for 'posix' flavor builds, which
 # may be done on both rtpreempt and xenomai machines.
@@ -370,6 +426,7 @@ builders:
     slaveclasses:
       arch: armv70
       distro: wheezy
+#
 # build documentation: this is distro-specific only, and may be run on
 # a host with any RT kernel and any architecture; in this example,
 # 'raring-docs' will be matched to two slaves, raring-xenomai-i386-vm1
@@ -389,6 +446,7 @@ builders:
       distro: wheezy
     factory: build-docs
     priority: 60
+#
 # build packages: in Debian, this is distro- and arch-specific, but
 # does not depend on the running kernel, although the various RT
 # flavors' development environment must be installed.  (In Red Hat,
