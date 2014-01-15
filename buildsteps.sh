@@ -29,6 +29,9 @@ case "$(git --version | awk '{print $3}')" in
 	GIT_REMOTE_MIRROR="--mirror=fetch" ;;
 esac
 
+# buildbot sets wacky 077 umask
+umask 022
+
 # fetch into the repo if it already exists in the 'buildir' subdir;
 # else clone a fresh repo
 
