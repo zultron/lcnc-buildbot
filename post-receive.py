@@ -505,6 +505,9 @@ try:
         if val.get('type',None) == 'multi-multi-git-poller':
             changesource = val
             git_repos = changesource.get('git-repos',{})
+            # fill in any missing local-remote
+            for repo in git_repos.values():
+                repo.setdefault('local-remote',repo['dir'])
 
     if options.master:
         master=options.master
