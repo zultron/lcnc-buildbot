@@ -3,14 +3,47 @@
 # This script starts execution in 'workdir'
 WORKDIR="$(pwd)"
 
+# If '-r' option exists, we're in a chroot
+IN_CHROOT=false
+SOURCE_DIR=source
+if test "$1" = -r; then
+    shift
+    IN_CHROOT=true
+    SOURCE_DIR=/buildsrc/source
+fi
+
 # At least a step should be defined
 usage="usage:  $0 <step>"
 step=${1:?$usage}; shift
+
+# If step name begins with 'chroot-', run in mock
+CHROOT=false
+if ! test $step = ${step#chroot-}; then
+    CHROOT=true
+    step=${step#chroot-}
+fi
 
 # buildbot sets wacky 077 umask
 umask 022
 
 GIT="git --git-dir=$repodir"
+
+# buildbot properties are not available in chroot
+if ! $IN_CHROOT; then
+    # translate $distro and $arch into a mock config name
+    case $distro in
+	el*) deriv=sl${distro#el} ;;
+	*) deriv=$distro
+    esac
+    case $arch in
+	32) distro_arch=i386 ;;
+	64) distro_arch=x86_64 ;;
+	*) echo "unknown arch $arch" 1>&2; exit 1 ;;
+    esac
+
+    # where to put temporary files between steps
+    transfer_dir=$transfer_dir/$distro-$arch
+fi
 
 # print 7-digit SHA1 of $revision
 shortrev() {
@@ -35,6 +68,11 @@ rpm_version() {
 # print RPM 'NVR' from specfile in $1
 rpm_nvr() {
     rpm -q --specfile $1 --qf='%{name}-%{version}-%{release}\n' | head -1
+}
+
+# hack to get the number of processors for make -j
+num_procs() {
+    cat /proc/cpuinfo | grep ^processor | wc -l
 }
 
 # fetch into the repo if it already exists in the 'buildir' subdir;
@@ -131,9 +169,9 @@ step-build-binary-package() {
 # clear and populate working subdirectory from the repo
 
 step-sourcetree() {
-    cd $REPODIR
-    rm -rf $WORKDIR/source
-    git archive --prefix=source/ "$revision" | tar xCf "$WORKDIR" -
+    sudo -n rm -rf $WORKDIR/source
+    git --git-dir=$repository archive --prefix=source/ "$revision" | \
+	tar xCf "$WORKDIR" -
 }
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
@@ -147,6 +185,11 @@ step-dmesg() {
 
 # report some useful info back to the buildmaster
 
+if test $step = environment; then
+    # run mock verbosely in environment step
+    MOCK_OPTS="$MOCK_OPTS -v"
+fi
+
 step-environment() {
     set +x
     echo 'uname -a:'; 
@@ -154,9 +197,6 @@ step-environment() {
     echo; 
     echo 'ulimit -a:'; 
     ulimit -a; 
-    echo; 
-    echo 'git --version:'; 
-    git --version; 
     echo; 
     echo 'gcc --version:'; 
     gcc --version; 
@@ -193,14 +233,14 @@ step-environment() {
 # autogen needed build files
 
 step-autogen() {
-    cd source/src
+    cd $SOURCE_DIR/src
     ./autogen.sh
 }
 
 # configure the build process - use default options here
 
 step-configure() {
-    cd source/src
+    cd $SOURCE_DIR/src
     # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
     if test -f /usr/lib64/tkConfig.sh; then
 	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
@@ -214,7 +254,7 @@ step-configure() {
 # configure the doc build process - use default options here
 
 step-configure-docs() {
-    cd source/src
+    cd $SOURCE_DIR/src
     # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
     if test -f /usr/lib64/tkConfig.sh; then
 	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
@@ -228,15 +268,31 @@ step-configure-docs() {
 # start the make process
 
 step-make() {
-    cd source/src
-    make V=1
+    cd $SOURCE_DIR/src
+    make V=1 -j$(num_procs)
+}
+
+# create tarball of built source tree for unit testing
+
+step-result-tarball() {
+    cd $SOURCE_DIR
+    tar czf /builddir/linuxcnc.tgz .
+    chgrp mockbuild /builddir/linuxcnc.tgz
+    chmod g+rw /builddir/linuxcnc.tgz
+}
+
+# move built source tarball to common place for unit testing
+
+step-move-tarball() {
+    mv $WORKDIR/linuxcnc.tgz \
+	$transfer_dir/linuxcnc-$distro-$arch.tgz
 }
 
 # start the make docs process
 
 step-make-docs() {
-    cd source/src
-    make V=1 docs
+    cd $SOURCE_DIR/src
+    make V=1 -j$(num_procs) docs
 }
 
 # finally, set proper permissions on executables
@@ -245,14 +301,14 @@ step-make-docs() {
 # to run 'sudo /usr/bin/make'
 
 step-setuid() {
-    cd source/src
+    cd $SOURCE_DIR/src
     sudo make setuid
 }
 
 # run the runtests in the default realtime environment
 
 step-runtests() {
-    cd source
+    cd $SOURCE_DIR
     source ./scripts/rip-environment
     # Force the flavor for runtests
     case "$buildername" in
@@ -298,7 +354,15 @@ step-source-rpm() {
     :
 }
 
-step-$step; res=$?
+if $CHROOT; then
+    mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
+	--configdir=$mock_config_dir \
+	--shell "/bin/bash -xe /buildsrc/buildsteps.sh -r $step"
+    res=$?
+
+else
+    step-$step; res=$?
+fi
 
 echo "step $step exited with status $res" 1>&2
 exit $res
