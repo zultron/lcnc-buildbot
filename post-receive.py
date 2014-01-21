@@ -37,6 +37,10 @@ from twisted.internet import reactor, defer
 
 from optparse import OptionParser
 
+# The master server address comes from the command line or the config file
+
+master = None
+
 # When sending the notification, send this category if (and only if)
 # it's set (via --category)
 
