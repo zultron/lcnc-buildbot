@@ -310,8 +310,9 @@ def create_repo(rconfig):
     if not direxists:
         os.makedirs(rconfig['dir'])
     # Run git clone
-    f = os.popen(
-        "%(git)s clone --mirror -q %(remote)s %(dir)s 2>&1" % rconfig, 'r')
+    cmd = "%(git)s clone --mirror -q %(remote)s %(dir)s 2>&1" % rconfig
+    logging.debug("Running '%s'" % cmd)
+    f = os.popen(cmd, 'r')
     while True:
         line = f.readline()
         if line:
