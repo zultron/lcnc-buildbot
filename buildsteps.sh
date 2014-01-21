@@ -1,11 +1,5 @@
 #!/bin/bash -xe
 
-# Where the clean git repo is checked out into
-#
-# Must match the 'workdir' setting in config.yaml (which makes this
-# liable to break :P )
-REPODIR=repo
-
 # This script starts execution in 'workdir'
 WORKDIR="$(pwd)"
 
@@ -13,31 +7,61 @@ WORKDIR="$(pwd)"
 usage="usage:  $0 <step>"
 step=${1:?$usage}; shift
 
-# Fix relative paths
-if test $REPODIR = ${REPODIR#/}; then   # relative path
-    # Always assume we're starting in the 'build' directory
-    # FIXME This is a terrible assumption.  How to pass in these params?
-    REPODIR="$(readlink -f $(pwd)/../$REPODIR)"
-fi
-
-# git version annoyance
-case "$(git --version | awk '{print $3}')" in
-    1.[0-6].*|1.7.[0-3]*|1.7.[0-3]*.*|1.7.4.[01])
-	# sheesh; want anything before 1.7.4.2.8.g3ccd6, I believe
-	GIT_REMOTE_MIRROR="--mirror" ;;
-    *)
-	GIT_REMOTE_MIRROR="--mirror=fetch" ;;
-esac
-
 # buildbot sets wacky 077 umask
 umask 022
+
+GIT="git --git-dir=$repodir"
+
+# print 7-digit SHA1 of $revision
+shortrev() {
+    $GIT rev-parse --short "$revision"
+}
+
+# print a value suitable for the RPM 'gitrel' macro
+gitrel() {
+    echo "$(date +%Y%m%d)git$(shortrev)"
+}
+
+# print RPM 'Source0' filename from specfile in $1
+rpm_source0() {
+    rpm -q --specfile $1 -E '%{trace}\n' 2>&1 | awk '/Source0:/ {print $3}'
+}
+
+# print RPM version from specfile in $1
+rpm_version() {
+    rpm -q --specfile $1 --qf='%{version}\n' | head -1
+}
+
+# print RPM 'NVR' from specfile in $1
+rpm_nvr() {
+    rpm -q --specfile $1 --qf='%{name}-%{version}-%{release}\n' | head -1
+}
 
 # fetch into the repo if it already exists in the 'buildir' subdir;
 # else clone a fresh repo
 
-step-init() {
-    if [ -d $REPODIR ]; then
-	pushd $REPODIR
+step-init-git() {
+    # sanity check/create the git repo directory
+    if test -z "$repodir"; then
+	echo "ERROR:  'repodir' environment variable not configured"
+	exit 1
+    elif ! mkdir -p $repodir; then
+	echo "ERROR:  unable to create repo directory '$repodir'"
+	exit 1
+    fi
+
+    # git version annoyance
+    case "$(git --version | awk '{print $3}')" in
+	1.[0-6].*|1.7.[0-3]*|1.7.[0-3]*.*|1.7.4.[01])
+	# sheesh; want anything before 1.7.4.2.8.g3ccd6, I believe
+	    GIT_REMOTE_MIRROR="--mirror" ;;
+	*)
+	    GIT_REMOTE_MIRROR="--mirror=fetch" ;;
+    esac
+
+    # check there's a git repo
+    if $GIT branch >/dev/null 2>&1; then
+	pushd $repodir
 	# Force the correct git url
 	#
 	# This is needed if the URL changes, and possibly in differing
@@ -51,7 +75,7 @@ step-init() {
 	    # needed revision isn't available; clean out directory and
 	    # try from scratch
 	    popd
-	    rm -rf $REPODIR
+	    rm -rf $repodir
 	    echo "fetch failed; retrying"
 	    step-init
 	else
@@ -60,9 +84,49 @@ step-init() {
 	    popd
 	fi
     else
-	git clone --mirror "$repository" $REPODIR
+	git clone --mirror "$repository" $repodir
     fi
 }
+
+# create tarball -%{version}%{?_gitrel:.%{_gitrel}}.tar.bz2
+step-build-tarball() {
+    # Update %_gitrel macro
+    mkdir -p SPECS
+    sed 's/%global\s\+_gitrel\s.*/%global _gitrel    '$(gitrel)'/' \
+	linuxcnc.spec > SPECS/linuxcnc.spec
+
+    # Create the tarball for Source0
+    TARBALL="$WORKDIR/SOURCES/$(rpm_source0 SPECS/linuxcnc.spec)"
+    mkdir -p SOURCES
+    $GIT archive --prefix=linuxcnc-$(rpm_version SPECS/linuxcnc.spec)/ \
+	"$revision" | bzip2 > $TARBALL
+}
+
+# create linuxcnc-2.6-<release>-<shortrev>.src.rpm source package
+step-build-source-package() {
+    rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
+}
+
+# build source package
+step-build-binary-package() {
+    # Calculate the mock config name
+    case $arch in
+	32) RH_ARCH=i386 ;;
+	64) RH_ARCH=x86_64 ;;
+	*) echo "Unknown arch '$arch'"; exit 1 ;;
+    esac
+    case $distro in
+	el6) MOCK_CONFIG=sl6-$RH_ARCH  ;;
+	el7) MOCK_CONFIG=sl7-$RH_ARCH  ;;
+	fc*) MOCK_CONFIG=$distro-$RH_ARCH ;;
+	*) echo "Unknown distro '$distro'"; exit 1 ;;
+    esac
+
+    mock -v -r $MOCK_CONFIG --no-clean \
+	SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
+}
+
+
 
 # clear and populate working subdirectory from the repo
 
