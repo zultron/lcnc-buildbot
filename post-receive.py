@@ -37,11 +37,6 @@ from twisted.internet import reactor, defer
 
 from optparse import OptionParser
 
-# Modify this to fit your setup, or pass in --master server:port on the
-# command line
-
-master = "localhost:9989"
-
 # When sending the notification, send this category if (and only if)
 # it's set (via --category)
 
@@ -491,9 +486,6 @@ try:
         logfile.setFormatter(fmt)
         logging.getLogger().addHandler(logfile)
 
-    if options.master:
-        master=options.master
-
     if options.category:
         category = options.category
 
@@ -508,6 +500,13 @@ try:
         if val.get('type',None) == 'multi-multi-git-poller':
             changesource = val
             git_repos = changesource.get('git-repos',{})
+
+    if options.master:
+        master=options.master
+    else:
+        masterhost = config.get('global',{}).get('master_hostname','localhost')
+        slaveport = config.get('global',{}).get('slavePortnum',9989)
+        master = '%s:%s' % (masterhost, slaveport)
 
     if options.username:
         username = options.username
