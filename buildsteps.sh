@@ -218,9 +218,11 @@ step-environment() {
     else
 	cat /etc/redhat-release
     fi
-    echo 'lsmod:'; 
-    lsmod; 
-    echo; 
+    if ! $IN_CHROOT; then
+	echo 'lsmod:'; 
+	lsmod; 
+	echo; 
+    fi
     if test -x /bin/rpm; then
 	echo "rpm -qa:"
 	rpm -qa
