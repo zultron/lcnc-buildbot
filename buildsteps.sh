@@ -270,22 +270,17 @@ step-configure-docs() {
 step-make() {
     cd $SOURCE_DIR/src
     make V=1 -j$(num_procs)
+    # make the tree writable by the buildbot user
+    chgrp -R mockbuild ..
+    chmod -R g+w ..
 }
 
-# create tarball of built source tree for unit testing
+# create tarball of built source tree in common location for unit
+# testing
 
 step-result-tarball() {
-    cd $SOURCE_DIR
-    tar czf /builddir/linuxcnc.tgz .
-    chgrp mockbuild /builddir/linuxcnc.tgz
-    chmod g+rw /builddir/linuxcnc.tgz
-}
-
-# move built source tarball to common place for unit testing
-
-step-move-tarball() {
-    mv $WORKDIR/linuxcnc.tgz \
-	$transfer_dir/linuxcnc-$distro-$arch.tgz
+    test -d $transfer_dir || mkdir -p $transfer_dir
+    tar cCzf source $transfer_dir/linuxcnc-$distro-$arch.tgz .
 }
 
 # start the make docs process
