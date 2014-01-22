@@ -246,8 +246,10 @@ step-result-tarball() {
 # note: fails if buildslave user doesn't have passwordless permission
 # to run 'sudo /bin/dmesg'
 
+# does this actually do anything, now that we have msgd?
+
 step-dmesg() {
-    sudo dmesg -c
+    sudo -n dmesg -c
 }
 
 # finally, set proper permissions on executables
