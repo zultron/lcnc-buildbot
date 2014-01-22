@@ -1,5 +1,8 @@
 #!/bin/bash -xe
 
+##############################################
+# PROCESS PARAMETERS
+
 # This script starts execution in 'workdir'
 WORKDIR="$(pwd)"
 
@@ -45,6 +48,9 @@ if ! $IN_CHROOT; then
     transfer_dir=$transfer_dir/$distro-$arch
 fi
 
+##############################################
+# CONVENIENCE ROUTINES
+
 # print 7-digit SHA1 of $revision
 shortrev() {
     $GIT rev-parse --short "$revision"
@@ -74,6 +80,9 @@ rpm_nvr() {
 num_procs() {
     cat /proc/cpuinfo | grep ^processor | wc -l
 }
+
+##############################################
+# UNUSED STEPS
 
 # fetch into the repo if it already exists in the 'buildir' subdir;
 # else clone a fresh repo
@@ -126,62 +135,9 @@ step-init-git() {
     fi
 }
 
-# create tarball -%{version}%{?_gitrel:.%{_gitrel}}.tar.bz2
-step-build-tarball() {
-    # Update %_gitrel macro
-    mkdir -p SPECS
-    sed 's/%global\s\+_gitrel\s.*/%global _gitrel    '$(gitrel)'/' \
-	linuxcnc.spec > SPECS/linuxcnc.spec
 
-    # Create the tarball for Source0
-    TARBALL="$WORKDIR/SOURCES/$(rpm_source0 SPECS/linuxcnc.spec)"
-    mkdir -p SOURCES
-    $GIT archive --prefix=linuxcnc-$(rpm_version SPECS/linuxcnc.spec)/ \
-	"$revision" | bzip2 > $TARBALL
-}
-
-# create linuxcnc-2.6-<release>-<shortrev>.src.rpm source package
-step-build-source-package() {
-    rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
-}
-
-# build source package
-step-build-binary-package() {
-    # Calculate the mock config name
-    case $arch in
-	32) RH_ARCH=i386 ;;
-	64) RH_ARCH=x86_64 ;;
-	*) echo "Unknown arch '$arch'"; exit 1 ;;
-    esac
-    case $distro in
-	el6) MOCK_CONFIG=sl6-$RH_ARCH  ;;
-	el7) MOCK_CONFIG=sl7-$RH_ARCH  ;;
-	fc*) MOCK_CONFIG=$distro-$RH_ARCH ;;
-	*) echo "Unknown distro '$distro'"; exit 1 ;;
-    esac
-
-    mock -v -r $MOCK_CONFIG --no-clean \
-	SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
-}
-
-
-
-# clear and populate working subdirectory from the repo
-
-step-sourcetree() {
-    sudo -n rm -rf $WORKDIR/source
-    git --git-dir=$repository archive --prefix=source/ "$revision" | \
-	tar xCf "$WORKDIR" -
-}
-
-# read and clear dmesg ring buffer to aid in debugging failed builds
-#
-# note: fails if buildslave user doesn't have passwordless permission
-# to run 'sudo /bin/dmesg'
-
-step-dmesg() {
-    sudo dmesg -c
-}
+##############################################
+# REUSED STEPS
 
 # report some useful info back to the buildmaster
 
@@ -232,6 +188,17 @@ step-environment() {
     fi
 }
 
+##############################################
+# BUILD
+
+# clear and populate working subdirectory from the repo
+
+step-sourcetree() {
+    sudo -n rm -rf $WORKDIR/source
+    git --git-dir=$repository archive --prefix=source/ "$revision" | \
+	tar xCf "$WORKDIR" -
+}
+
 # autogen needed build files
 
 step-autogen() {
@@ -253,20 +220,6 @@ step-configure() {
     ./configure $ARGS
 }
 
-# configure the doc build process - use default options here
-
-step-configure-docs() {
-    cd $SOURCE_DIR/src
-    # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
-    if test -f /usr/lib64/tkConfig.sh; then
-	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
-    fi
-    if test -f /usr/lib64/tclConfig.sh; then
-	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
-    fi
-    ./configure $ARGS --enable-build-documentation
-}
-
 # start the make process
 
 step-make() {
@@ -285,11 +238,16 @@ step-result-tarball() {
     tar cCzf source $transfer_dir/linuxcnc-$distro-$arch.tgz .
 }
 
-# start the make docs process
+##############################################
+# TESTS
 
-step-make-docs() {
-    cd $SOURCE_DIR/src
-    make V=1 -j$(num_procs) docs
+# read and clear dmesg ring buffer to aid in debugging failed builds
+#
+# note: fails if buildslave user doesn't have passwordless permission
+# to run 'sudo /bin/dmesg'
+
+step-dmesg() {
+    sudo dmesg -c
 }
 
 # finally, set proper permissions on executables
@@ -345,11 +303,76 @@ step-closeout() {
     dmesg
 }
 
-# create the SRPM
 
-step-source-rpm() {
-    :
+##############################################
+# BUILD PACKAGES
+
+# create tarball -%{version}%{?_gitrel:.%{_gitrel}}.tar.bz2
+step-build-tarball() {
+    # Update %_gitrel macro
+    mkdir -p SPECS
+    sed 's/%global\s\+_gitrel\s.*/%global _gitrel    '$(gitrel)'/' \
+	linuxcnc.spec > SPECS/linuxcnc.spec
+
+    # Create the tarball for Source0
+    TARBALL="$WORKDIR/SOURCES/$(rpm_source0 SPECS/linuxcnc.spec)"
+    mkdir -p SOURCES
+    $GIT archive --prefix=linuxcnc-$(rpm_version SPECS/linuxcnc.spec)/ \
+	"$revision" | bzip2 > $TARBALL
 }
+
+# create linuxcnc-2.6-<release>-<shortrev>.src.rpm source package
+step-build-source-package() {
+    rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
+}
+
+# build source package
+step-build-binary-package() {
+    # Calculate the mock config name
+    case $arch in
+	32) RH_ARCH=i386 ;;
+	64) RH_ARCH=x86_64 ;;
+	*) echo "Unknown arch '$arch'"; exit 1 ;;
+    esac
+    case $distro in
+	el6) MOCK_CONFIG=sl6-$RH_ARCH  ;;
+	el7) MOCK_CONFIG=sl7-$RH_ARCH  ;;
+	fc*) MOCK_CONFIG=$distro-$RH_ARCH ;;
+	*) echo "Unknown distro '$distro'"; exit 1 ;;
+    esac
+
+    mock -v -r $MOCK_CONFIG --no-clean \
+	SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
+}
+
+
+
+##############################################
+# DOCS
+#
+# configure the doc build process - use default options here
+
+step-configure-docs() {
+    cd $SOURCE_DIR/src
+    # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
+    if test -f /usr/lib64/tkConfig.sh; then
+	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
+    fi
+    if test -f /usr/lib64/tclConfig.sh; then
+	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
+    fi
+    ./configure $ARGS --enable-build-documentation
+}
+
+# start the make docs process
+
+step-make-docs() {
+    cd $SOURCE_DIR/src
+    make V=1 -j$(num_procs) docs
+}
+
+##############################################
+# DO IT:  RUN STEP
 
 if $CHROOT; then
     mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
