@@ -297,12 +297,11 @@ step-test-environment() {
     lsmod; 
     echo; 
     echo 'realtime status:'
-    if realtime status; then
-	echo
-	echo 'stopping realtime environment:'
-	realtime stop
-	echo
-    fi
+    realtime status || true
+    echo
+    echo 'stopping realtime environment:'
+    DEBUG=5 MSGD_OPTS=-s realtime stop || true
+    echo
 }
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
