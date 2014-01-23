@@ -92,6 +92,15 @@ BuildRequires:  gettext
 BuildRequires:  python-devel
 BuildRequires:  python-lxml
 BuildRequires:	libudev-devel
+BuildRequires:  sysvinit-tools
+BuildRequires:  psmisc
+%if 0%{?fedora}
+BuildRequires:  kmod
+BuildRequires:  procps-ng
+%else
+BuildRequires:  module-init-tools
+BuildRequires:  procps
+%endif
 # for building docs
 %if ! %{_without_docs}
 BuildRequires:  lyx
