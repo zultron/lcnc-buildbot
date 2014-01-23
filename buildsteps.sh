@@ -103,61 +103,6 @@ fi
 
 
 ##############################################
-# UNUSED STEPS
-
-# fetch into the repo if it already exists in the 'buildir' subdir;
-# else clone a fresh repo
-
-step-init-git() {
-    # sanity check/create the git repo directory
-    if test -z "$repodir"; then
-	echo "ERROR:  'repodir' environment variable not configured"
-	exit 1
-    elif ! mkdir -p $repodir; then
-	echo "ERROR:  unable to create repo directory '$repodir'"
-	exit 1
-    fi
-
-    # git version annoyance
-    case "$(git --version | awk '{print $3}')" in
-	1.[0-6].*|1.7.[0-3]*|1.7.[0-3]*.*|1.7.4.[01])
-	# sheesh; want anything before 1.7.4.2.8.g3ccd6, I believe
-	    GIT_REMOTE_MIRROR="--mirror" ;;
-	*)
-	    GIT_REMOTE_MIRROR="--mirror=fetch" ;;
-    esac
-
-    # check there's a git repo
-    if $GIT branch >/dev/null 2>&1; then
-	pushd $repodir
-	# Force the correct git url
-	#
-	# This is needed if the URL changes, and possibly in differing
-	# versions of git:  some set origin after clone, some don't
-	git remote rm origin 2>/dev/null || true
-	git remote add $GIT_REMOTE_MIRROR origin "$repository"
-	# Now fetch as usual
-	if ! git fetch origin -t '+refs/*:refs/*' ||
-	    ! git log -1 $revision; then
-	    # either fetch command failed or it succeded but the
-	    # needed revision isn't available; clean out directory and
-	    # try from scratch
-	    popd
-	    rm -rf $repodir
-	    echo "fetch failed; retrying"
-	    step-init
-	else
-	    set -e
-	    echo "fetch succeeded"
-	    popd
-	fi
-    else
-	git clone --mirror "$repository" $repodir
-    fi
-}
-
-
-##############################################
 # REUSED STEPS
 
 # report some useful info back to the buildmaster
