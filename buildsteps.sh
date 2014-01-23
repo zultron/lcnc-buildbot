@@ -1,59 +1,13 @@
 #!/bin/bash -xe
 
 ##############################################
-# PROCESS PARAMETERS
-
-# This script starts execution in 'workdir'
-WORKDIR="$(pwd)"
-
-# If '-r' option exists, we're in a chroot
-IN_CHROOT=false
-SOURCE_DIR=source
-if test "$1" = -r; then
-    shift
-    IN_CHROOT=true
-    SOURCE_DIR=/buildsrc/source
-fi
-
-# At least a step should be defined
-usage="usage:  $0 <step>"
-step=${1:?$usage}; shift
-
-# If step name begins with 'chroot-', run in mock
-CHROOT=false
-if ! test $step = ${step#chroot-}; then
-    CHROOT=true
-    step=${step#chroot-}
-fi
-
-# buildbot sets wacky 077 umask
-umask 022
-
-GIT="git --git-dir=$repodir"
-
-# buildbot properties are not available in chroot
-if ! $IN_CHROOT; then
-    # translate $distro and $arch into a mock config name
-    case $distro in
-	el*) deriv=sl${distro#el} ;;
-	*) deriv=$distro
-    esac
-    case $arch in
-	32) distro_arch=i386 ;;
-	64) distro_arch=x86_64 ;;
-	*) echo "unknown arch $arch" 1>&2; exit 1 ;;
-    esac
-
-    # where to put temporary files between steps
-    transfer_dir=$transfer_dir/$distro-$arch
-fi
-
-##############################################
 # CONVENIENCE ROUTINES
 
 # print 7-digit SHA1 of $revision
 shortrev() {
-    $GIT rev-parse --short "$revision"
+    # do it without needing a repo
+    #$GIT rev-parse --short "$revision"
+    echo ${revision%?????????????????????????????????}
 }
 
 # print a value suitable for the RPM 'gitrel' macro
@@ -80,6 +34,73 @@ rpm_nvr() {
 num_procs() {
     cat /proc/cpuinfo | grep ^processor | wc -l
 }
+
+##############################################
+# PROCESS PARAMETERS
+
+# This script starts execution in 'workdir'
+WORKDIR="$(pwd)"
+
+# If '-r' option exists, we're in a chroot
+IN_CHROOT=false
+if test "$1" = -r; then
+    shift
+    IN_CHROOT=true
+    # Set $BUILD_TEST_DIR same as outside chroot so $EMC2_HOME
+    # etc. are correct
+    BUILD_TEST_DIR="$2"
+    # BUILD_TEST_DIR is a sensible directory to start in
+    cd $BUILD_TEST_DIR
+fi
+
+# At least a step should be defined
+usage="usage:  $0 <step>"
+step=${1:?$usage}; shift
+
+# If step name begins with 'chroot-', run in mock
+CHROOT=false
+if ! test $step = ${step#chroot-}; then
+    CHROOT=true
+    step=${step#chroot-}
+fi
+
+# buildbot sets wacky 077 umask
+umask 022
+
+GIT="git --git-dir=$repository"
+
+# buildbot properties are not available in chroot
+if ! $IN_CHROOT && ! $SERVER_SIDE; then
+    # translate $distro and $arch into a mock config name
+    case $distro in
+	el*) deriv=sl${distro#el} ;;
+	*) deriv=$distro
+    esac
+    case $arch in
+	32) distro_arch=i386 ;;
+	64) distro_arch=x86_64 ;;
+    esac
+
+    # this changeset's results directory
+    changeset_result_dir=$result_dir/$(shortrev)
+
+    # distro-arch results directory, also for inter-builder transfers
+    result_da_dir=$changeset_result_dir/$distro-$arch
+
+    # where the chroot build and non-chroot unit tests happen
+    BUILD_TEST_DIR=/var/lib/buildslave/$distro-$arch-bldtest/build/source
+
+    # tmp dir where the chroot build puts results
+    BUILD_TEST_RESULT_DIR=/var/lib/buildslave/$distro-$arch-bldtest/result
+
+    # name of git archive tarball
+    git_archive_tarball=$changeset_result_dir/linuxcnc.tar.bz2
+
+    # name of built sources tarball
+    built_source_tarball=$result_da_dir/linuxcnc-built.tar.bz2
+
+fi
+
 
 ##############################################
 # UNUSED STEPS
@@ -189,27 +210,51 @@ step-environment() {
 }
 
 ##############################################
+# INIT 'ANT'
+
+# Build a clean tarball from git
+step-tarball() {
+    prefix=linuxcnc-$(rpm_version linuxcnc.spec)/
+    mkdir -p $changeset_result_dir
+    # (use 'dd' so destination is visible in 'bash -x' output)
+
+    $GIT archive --prefix=$prefix "$revision" | \
+	bzip2 | dd of=$git_archive_tarball
+}
+
+##############################################
+# INIT DISTRO/FLAVOR 'BEE'
+
+# Empty the distro-arch results dir
+step-init() {
+    rm $result_da_dir/*
+}
+
+##############################################
 # BUILD
 
-# clear and populate working subdirectory from the repo
+# Clear and populate working subdirectory from the repo.  At
+# the same time, copy 'buildsteps.sh' here, accessible in the chroot.
 
 step-sourcetree() {
-    sudo -n rm -rf $WORKDIR/source
-    git --git-dir=$repository archive --prefix=source/ "$revision" | \
-	tar xCf "$WORKDIR" -
+    sudo -n rm -rf $BUILD_TEST_DIR
+    mkdir -p $BUILD_TEST_DIR
+    tar xCjf $BUILD_TEST_DIR $git_archive_tarball
+
+    cp buildsteps.sh linuxcnc.spec $BUILD_TEST_DIR
 }
 
 # autogen needed build files
 
 step-autogen() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     ./autogen.sh
 }
 
 # configure the build process - use default options here
 
 step-configure() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
     if test -f /usr/lib64/tkConfig.sh; then
 	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
@@ -223,7 +268,7 @@ step-configure() {
 # start the make process
 
 step-make() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     make V=1 -j$(num_procs)
     # make the tree writable by the buildbot user
     chgrp -R mockbuild ..
@@ -234,12 +279,22 @@ step-make() {
 # testing
 
 step-result-tarball() {
-    test -d $transfer_dir || mkdir -p $transfer_dir
-    tar cCzf source $transfer_dir/linuxcnc-$distro-$arch.tgz .
+    test -d $result_da_dir || mkdir -p $result_da_dir
+    tar cCjf $BUILD_TEST_DIR $built_source_tarball \
+	linuxcnc-$(rpm_version linuxcnc.spec)
 }
 
 ##############################################
 # TESTS
+
+# Unpack the build result tarball created in the 'build' builder.
+
+step-untar-build() {
+    rm -rf $BUILD_TEST_DIR
+    mkdir -p $BUILD_TEST_DIR
+    cd $BUILD_TEST_DIR
+    tar xjf $built_source_tarball
+}
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
 #
@@ -258,23 +313,23 @@ step-dmesg() {
 # to run 'sudo /usr/bin/make'
 
 step-setuid() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     sudo make setuid
 }
 
 # run the runtests in the default realtime environment
 
 step-runtests() {
-    cd $SOURCE_DIR
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)
     source ./scripts/rip-environment
     # Force the flavor for runtests
     case "$buildername" in
-	*-posix) FLAVOR=posix ;;
-	*-rtpreempt) FLAVOR=rt-preempt ;;
-	*-xenomai) FLAVOR=xenomai ;;
-	*-xenomai_kernel) FLAVOR=xenomai-kernel ;;
-	*-rtai_kernel) FLAVOR=rtai-kernel ;;
-	'')  echo "buildername is unset!" 1>&2; exit 1 ;;
+	*-pos-tst) FLAVOR=posix ;;
+	*-rtp-tst) FLAVOR=rt-preempt ;;
+	*-x-tst) FLAVOR=xenomai ;;
+	*-x-k-tst) FLAVOR=xenomai-kernel ;;
+	*-rtk) FLAVOR=rtai-kernel ;;
+	'') echo "buildername is unset!" 1>&2; exit 1 ;;
 	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
     esac
     export FLAVOR
@@ -311,16 +366,15 @@ step-closeout() {
 
 # create tarball -%{version}%{?_gitrel:.%{_gitrel}}.tar.bz2
 step-build-tarball() {
-    # Update %_gitrel macro
+    # Update specfile's %_gitrel macro
     mkdir -p SPECS
     sed 's/%global\s\+_gitrel\s.*/%global _gitrel    '$(gitrel)'/' \
 	linuxcnc.spec > SPECS/linuxcnc.spec
 
     # Create the tarball for Source0
-    TARBALL="$WORKDIR/SOURCES/$(rpm_source0 SPECS/linuxcnc.spec)"
+    TARBALL="SOURCES/$(rpm_source0 SPECS/linuxcnc.spec)"
     mkdir -p SOURCES
-    $GIT archive --prefix=linuxcnc-$(rpm_version SPECS/linuxcnc.spec)/ \
-	"$revision" | bzip2 > $TARBALL
+    cp $git_archive_tarball $TARBALL
 }
 
 # create linuxcnc-2.6-<release>-<shortrev>.src.rpm source package
@@ -343,8 +397,16 @@ step-build-binary-package() {
 	*) echo "Unknown distro '$distro'"; exit 1 ;;
     esac
 
-    mock -v -r $MOCK_CONFIG --no-clean \
+    # mock wants to write things as root to --resultdir, which means
+    # no NFS.  Work around with an intermediate, local resultdir.
+    mkdir -p $BUILD_TEST_RESULT_DIR
+
+    mock -v -r $MOCK_CONFIG --no-clean --resultdir=$BUILD_TEST_RESULT_DIR \
+	--configdir=$mock_config_dir --unpriv \
 	SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
+
+    cp $BUILD_TEST_RESULT_DIR/* $result_da_dir
+    rm -r $BUILD_TEST_RESULT_DIR
 }
 
 
@@ -355,7 +417,7 @@ step-build-binary-package() {
 # configure the doc build process - use default options here
 
 step-configure-docs() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
     if test -f /usr/lib64/tkConfig.sh; then
 	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
@@ -369,7 +431,7 @@ step-configure-docs() {
 # start the make docs process
 
 step-make-docs() {
-    cd $SOURCE_DIR/src
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
     make V=1 -j$(num_procs) docs
 }
 
@@ -377,9 +439,10 @@ step-make-docs() {
 # DO IT:  RUN STEP
 
 if $CHROOT; then
+    cmd="$BUILD_TEST_DIR/buildsteps.sh -r $step $BUILD_TEST_DIR"
     mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
 	--configdir=$mock_config_dir \
-	--shell "/bin/bash -xe /buildsrc/buildsteps.sh -r $step"
+	--shell "/bin/bash -xe $cmd"
     res=$?
 
 else
