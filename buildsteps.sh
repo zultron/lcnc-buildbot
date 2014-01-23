@@ -35,6 +35,30 @@ num_procs() {
     cat /proc/cpuinfo | grep ^processor | wc -l
 }
 
+RemoveModules(){
+    # Remove a list of modules recursively
+    #
+    # When RTAPI shuts down uncleanly, not only hal_lib and rtapi may
+    # still be loaded, but also comp, motmod, or other modules that
+    # depend on those.
+    #
+    # Check for loaded modules dependent on hal_lib and unload them
+    # first.
+
+    for MODULE in $*; do
+        # recurse on any dependent modules in /proc/modules
+        DEP_MODULES=$(cat /proc/modules | \
+            awk '/^'$MODULE' / { mods=$4; gsub(","," ",mods); print mods }')
+        test "$DEP_MODULES" = - || RemoveModules $DEP_MODULES
+
+        # remove module if still loaded
+        grep -q "^$MODULE " /proc/modules && \
+            linuxcnc_module_helper remove $MODULE
+
+    done
+}
+
+
 ##############################################
 # PROCESS PARAMETERS
 
@@ -299,6 +323,24 @@ step-test-environment() {
     echo 'realtime status:'
     realtime status || true
     echo
+    if ps -C linuxcncrsh -o pid=; then
+	echo 'killing detected linuxcncrsh instance:'
+	killall linuxcncrsh
+	sleep 1
+    fi
+    if test $FLAVOR = xenomai-kernel; then
+	echo "looking for hal_lib in /proc/modules:"
+	depmods="$(awk '/^hal_lib / { gsub(","," ",$4); print $4 }' \
+		 /proc/modules)"
+	case "$depmods" in
+	    '') echo  "    not loaded" ;;
+	    '-') echo "   loaded; no depending modules loaded" ;;
+	    *)  echo  "   loaded with depending modules: $depmods; removing"
+		RemoveModules $depmods
+		;;
+	esac
+	echo
+    fi
     echo 'stopping realtime environment:'
     DEBUG=5 MSGD_OPTS=-s realtime stop || true
     echo
@@ -331,14 +373,18 @@ step-runtests() {
     rtapi-init
 
     # FIXME debugging xenomai and xenomai-kernel
-    if test $FLAVOR = xenomai-kernel; then
-	# run an initial debugging test for xenomai and xenomai-kernel
-	# runtests; this will fail, but will expose extra debug
-	# messages to help locate the problem
-	tail -F tests/abs.0/stderr & TAIL_PID=$!
+    if test $FLAVOR = xenomai; then
+	# run an initial debugging test for abs.0 on xenomai; this
+	# will fail, but will expose extra debug messages to help
+	# locate the problem
 	DEBUG=5 MSGD_OPTS=-s runtests -v tests/abs.0 || true
-	kill $TAIL_PID
     fi
+
+    # FIXME debugging hm2-idrom on all flavors
+    #
+    # run an initial debugging test for hm2-idrom; this will fail, but
+    # will expose extra debug messages to help locate the problem
+    DEBUG=5 MSGD_OPTS=-s runtests -v tests/hm2-idrom || true
 
     runtests -v
 }
