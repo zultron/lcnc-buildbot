@@ -103,58 +103,6 @@ fi
 
 
 ##############################################
-# REUSED STEPS
-
-# report some useful info back to the buildmaster
-
-if test $step = environment; then
-    # run mock verbosely in environment step
-    MOCK_OPTS="$MOCK_OPTS -v"
-fi
-
-step-environment() {
-    set +x
-    echo 'uname -a:'; 
-    uname -a; 
-    echo; 
-    echo 'ulimit -a:'; 
-    ulimit -a; 
-    echo; 
-    echo 'gcc --version:'; 
-    gcc --version; 
-    echo; 
-    echo 'python -V:'; 
-    python -V; 
-    echo; 
-    if test ${buildername} != ${buildername%xenomai} -a \
-	-x /usr/bin/xenomai-gid-ctl; then
-	echo "xenomai-gid-ctl test:"
-	/usr/bin/xenomai-gid-ctl test
-    fi
-    echo "groups:"
-    groups
-    if test -x /usr/bin/lsb_release; then
-	echo 'lsb_release --all:'; 
-	lsb_release --all; 
-	echo; 
-    else
-	cat /etc/redhat-release
-    fi
-    if ! $IN_CHROOT; then
-	echo 'lsmod:'; 
-	lsmod; 
-	echo; 
-    fi
-    if test -x /bin/rpm; then
-	echo "rpm -qa:"
-	rpm -qa
-    elif test -x /usr/bin/dpkg; then
-	echo 'dpkg --get-selections:'; 
-	dpkg --get-selections;
-    fi
-}
-
-##############################################
 # INIT 'ANT'
 
 # Build a clean tarball from git
@@ -187,6 +135,37 @@ step-sourcetree() {
     tar xCjf $BUILD_TEST_DIR $git_archive_tarball
 
     cp buildsteps.sh linuxcnc.spec $BUILD_TEST_DIR
+}
+
+# Report some useful info back to the buildmaster
+
+if test $step = environment; then
+    # run mock verbosely in environment step
+    MOCK_OPTS="$MOCK_OPTS -v"
+fi
+
+step-environment() {
+    set +x
+    echo 'gcc --version:'; 
+    gcc --version; 
+    echo; 
+    echo 'python -V:'; 
+    python -V; 
+    echo; 
+    if test -x /usr/bin/lsb_release; then
+	echo 'lsb_release --all:'; 
+	lsb_release --all; 
+	echo; 
+    else
+	cat /etc/redhat-release
+    fi
+    if test -x /bin/rpm; then
+	echo "rpm -qa:"
+	rpm -qa
+    elif test -x /usr/bin/dpkg; then
+	echo 'dpkg --get-selections:'; 
+	dpkg --get-selections;
+    fi
 }
 
 # autogen needed build files
@@ -241,6 +220,91 @@ step-untar-build() {
     tar xjf $built_source_tarball
 }
 
+
+# Set up RT environment; used by test-environment and runtest steps
+
+rtapi-init() {
+    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)
+    source ./scripts/rip-environment
+
+    # Force the flavor for runtests; set non-conflicting instance
+    # numbers so a crash in one flavor doesn't hurt another
+    case "$buildername" in
+	*-pos-tst) FLAVOR=posix; INSTANCE=1 ;;
+	*-rtp-tst) FLAVOR=rt-preempt; INSTANCE=2 ;;
+	*-x-tst) FLAVOR=xenomai; INSTANCE=3 ;;
+	*-x-k-tst) FLAVOR=xenomai-kernel; INSTANCE=4 ;;
+	*-rtk) FLAVOR=rtai-kernel; INSTANCE=5 ;;
+	'') echo "buildername is unset!" 1>&2; exit 1 ;;
+	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
+    esac
+    export FLAVOR INSTANCE
+}
+
+
+# Gather data about test environment for debugging
+
+step-test-environment() {
+    set +x
+    rtapi-init
+    echo 'flavor:'
+    flavor
+    echo
+    echo 'env:'
+    env
+    echo
+    echo 'uname -a:'; 
+    uname -a; 
+    echo; 
+    echo 'ulimit -a:'; 
+    ulimit -a; 
+    echo; 
+    echo 'hostname:'
+    hostname
+    echo; 
+    echo 'gcc --version:'; 
+    gcc --version; 
+    echo; 
+    echo 'python -V:'; 
+    python -V; 
+    echo; 
+    if test $FLAVOR = xenomai -o $FLAVOR = xenomai-kernel; then
+	if test -x /usr/bin/xenomai-gid-ctl; then
+	    # 2.6.3 RPMs include this utility
+	    echo "xenomai-gid-ctl test:"
+	    /usr/bin/xenomai-gid-ctl test
+	else
+	    # otherwise, query directly
+	    xeno_gid=$(cat /sys/module/xeno_nucleus/parameters/xenomai_gid)
+	    if test $xeno_gid = -1; then
+		echo "xenomai non-root group disabled!"
+	    else
+		echo "xenomai non-root group:"
+		getent group | grep $xeno_gid
+	    fi
+	fi
+    fi
+    echo "groups:"
+    groups
+    if test -x /usr/bin/lsb_release; then
+	echo 'lsb_release --all:'; 
+	lsb_release --all; 
+	echo; 
+    else
+	cat /etc/redhat-release
+    fi
+    echo 'lsmod:'; 
+    lsmod; 
+    echo; 
+    echo 'realtime status:'
+    if realtime status; then
+	echo
+	echo 'stopping realtime environment:'
+	realtime stop
+	echo
+    fi
+}
+
 # read and clear dmesg ring buffer to aid in debugging failed builds
 #
 # note: fails if buildslave user doesn't have passwordless permission
@@ -252,7 +316,7 @@ step-dmesg() {
     sudo -n dmesg -c
 }
 
-# finally, set proper permissions on executables
+# set proper permissions on executables
 #
 # note: fails if buildslave user doesn't have passwordless permission
 # to run 'sudo /usr/bin/make'
@@ -265,32 +329,13 @@ step-setuid() {
 # run the runtests in the default realtime environment
 
 step-runtests() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)
-    source ./scripts/rip-environment
-    # Force the flavor for runtests
-    case "$buildername" in
-	*-pos-tst) FLAVOR=posix ;;
-	*-rtp-tst) FLAVOR=rt-preempt ;;
-	*-x-tst) FLAVOR=xenomai ;;
-	*-x-k-tst) FLAVOR=xenomai-kernel ;;
-	*-rtk) FLAVOR=rtai-kernel ;;
-	'') echo "buildername is unset!" 1>&2; exit 1 ;;
-	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
-    esac
-    export FLAVOR
+    rtapi-init
 
-    # for debugging
-    env
-
-    # help ensure a previous crashed session doesn't interfere
-    realtime stop || true
-
-    echo "flavor: $(flavor)"
-
-    # FIXME testing xenomai
-    if test ${buildername} != ${buildername%xenomai}; then
-	# turn on debugging for xenomai builders; this will fail, but
-	# will expose extra debug messages to help locate the problem
+    # FIXME debugging xenomai and xenomai-kernel
+    if test $FLAVOR = xenomai-kernel; then
+	# run an initial debugging test for xenomai and xenomai-kernel
+	# runtests; this will fail, but will expose extra debug
+	# messages to help locate the problem
 	tail -F tests/abs.0/stderr & TAIL_PID=$!
 	DEBUG=5 MSGD_OPTS=-s runtests -v tests/abs.0 || true
 	kill $TAIL_PID
