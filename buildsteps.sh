@@ -372,14 +372,6 @@ step-setuid() {
 step-runtests() {
     rtapi-init
 
-    # FIXME debugging xenomai and xenomai-kernel
-    if test $FLAVOR = xenomai; then
-	# run an initial debugging test for abs.0 on xenomai; this
-	# will fail, but will expose extra debug messages to help
-	# locate the problem
-	DEBUG=5 MSGD_OPTS=-s runtests -v tests/abs.0 || true
-    fi
-
     # FIXME debugging hm2-idrom on all flavors
     #
     # run an initial debugging test for hm2-idrom; this will fail, but
