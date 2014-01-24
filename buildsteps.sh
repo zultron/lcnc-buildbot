@@ -144,7 +144,7 @@ step-tarball() {
 
 # Empty the distro-arch results dir
 step-init() {
-    rm $result_da_dir/*
+    rm -f $result_da_dir/*
 }
 
 ##############################################
