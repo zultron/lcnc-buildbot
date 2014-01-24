@@ -436,7 +436,7 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
 - linuxcnc-module-helper setuid root
 - rpmlint cleanups:  tabs, perms
 
-* Mon Nov  6 2012 John Morris <john@zultron.com> - 2.6.0-0.2.pre0
+* Tue Nov  6 2012 John Morris <john@zultron.com> - 2.6.0-0.2.pre0
 - Update to Haberler's 2.6.0.pre0-20121106git98e9566 with
   multiple RT systems support
 - Add configuration code for xenomai, based on Zultron kernel-xenomai RPM
