@@ -346,6 +346,8 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
 %lang(zh_HK) %{_datadir}/locale/zh_HK/LC_MESSAGES/linuxcnc.mo
 %lang(zh_TW) %{_datadir}/locale/zh_TW/LC_MESSAGES/linuxcnc.mo
 %config(noreplace) %{_sysconfdir}/rsyslog.d/linuxcnc.conf
+%config(noreplace) %{_sysconfdir}/security/limits.d/linuxcnc.conf
+%config(noreplace) %{_sysconfdir}/udev/rules.d/50-LINUXCNC-shmdrv.rules
 %doc %{_mandir}/man[19]/*
 
 %files devel
