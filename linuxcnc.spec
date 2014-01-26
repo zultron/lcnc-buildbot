@@ -103,6 +103,7 @@ BuildRequires:  procps
 %endif
 # for building docs
 %if ! %{_without_docs}
+BuildRequires:  groff
 BuildRequires:  lyx
 BuildRequires:  source-highlight
 BuildRequires:  ImageMagick
