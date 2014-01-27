@@ -103,6 +103,8 @@ if ! $IN_CHROOT && ! $SERVER_SIDE; then
     case $arch in
 	32) distro_arch=i386 ;;
 	64) distro_arch=x86_64 ;;
+	"") arch=64;  # pick an arch arbitrarily for e.g. docs
+	    distro_arch=x86_64 ;;
     esac
 
     # this changeset's results directory
@@ -149,6 +151,8 @@ step-init() {
 
 ##############################################
 # BUILD
+#
+# Build LinuxCNC in a mock chroot environment; includes building docs
 
 # Clear and populate working subdirectory from the repo.  At
 # the same time, copy 'buildsteps.sh' here, accessible in the chroot.
@@ -210,6 +214,9 @@ step-configure() {
     if test -f /usr/lib64/tclConfig.sh; then
 	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
     fi
+    if ! test ${buildername%-doc} = ${buildername}; then
+	ARGS="$ARGS --enable-build-documentation"
+    fi
     ./configure $ARGS
 }
 
@@ -217,7 +224,11 @@ step-configure() {
 
 step-make() {
     cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
-    make V=1 -j$(num_procs)
+    TARGET=
+    if ! test ${buildername%-doc} = ${buildername}; then
+	TARGET=docs
+    fi
+    make V=1 -j$(num_procs) $TARGET
     # make the tree writable by the buildbot user
     chgrp -R mockbuild ..
     chmod -R g+w ..
@@ -238,6 +249,10 @@ step-result-tarball() {
 # Unpack the build result tarball created in the 'build' builder.
 
 step-untar-build() {
+    if ! test ${buildername%-doc} = ${buildername}; then
+	# don't create tarball for docs
+	return 1
+    fi
     rm -rf $BUILD_TEST_DIR
     mkdir -p $BUILD_TEST_DIR
     cd $BUILD_TEST_DIR
@@ -393,6 +408,9 @@ step-closeout() {
 
 # create tarball -%{version}%{?_gitrel:.%{_gitrel}}.tar.bz2
 step-build-tarball() {
+    # clean out old RPM build directories
+    rm -rf BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
+
     # Update specfile's %_gitrel macro
     mkdir -p SPECS
     sed 's/%global\s\+_gitrel\s.*/%global _gitrel    '$(gitrel)'/' \
@@ -439,37 +457,13 @@ step-build-binary-package() {
 
 
 ##############################################
-# DOCS
-#
-# configure the doc build process - use default options here
-
-step-configure-docs() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
-    # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
-    if test -f /usr/lib64/tkConfig.sh; then
-	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
-    fi
-    if test -f /usr/lib64/tclConfig.sh; then
-	ARGS="$ARGS --with-tclConfig=/usr/lib64/tclConfig.sh"
-    fi
-    ./configure $ARGS --enable-build-documentation
-}
-
-# start the make docs process
-
-step-make-docs() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
-    make V=1 -j$(num_procs) docs
-}
-
-##############################################
 # DO IT:  RUN STEP
 
 if $CHROOT; then
     cmd="$BUILD_TEST_DIR/buildsteps.sh -r $step $BUILD_TEST_DIR"
     mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
 	--configdir=$mock_config_dir \
-	--shell "/bin/bash -xe $cmd"
+	--shell "buildername=$buildername /bin/bash -xe $cmd"
     res=$?
 
 else
