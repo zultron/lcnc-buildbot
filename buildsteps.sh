@@ -187,6 +187,9 @@ step-environment() {
     else
 	cat /etc/redhat-release
     fi
+    echo 'env:'
+    env
+    echo
     if test -x /bin/rpm; then
 	echo "rpm -qa:"
 	rpm -qa
@@ -298,6 +301,12 @@ step-test-environment() {
     echo 'ulimit -a:'; 
     ulimit -a; 
     echo; 
+    echo "ps -p $$ -o cgroup=:"
+    ps -p $$ -o cgroup=
+    echo
+    echo "cat /proc/$$/cgroup:"
+    cat /proc/$$/cgroup
+    echo
     echo 'hostname:'
     hostname
     echo; 
@@ -370,6 +379,15 @@ step-test-environment() {
 
 step-dmesg() {
     sudo -n dmesg -c
+
+    # clean up old runtest.* and linuxcnc.* directories under /tmp
+    echo "cleaning up /tmp:"
+    ls -l /tmp
+    df -h /tmp
+    # find /tmp  -maxdepth 1 -mtime +1 -user buildbot \
+    # 	\( -name runtest.\* -o -name linuxcnc.\* \) \
+    # 	-exec rm -rf '{}' \;
+    rm -rf /tmp/linuxcnc.*
 }
 
 # set proper permissions on executables
