@@ -405,11 +405,12 @@ step-setuid() {
 step-runtests() {
     rtapi-init
 
-    # FIXME debugging hm2-idrom on all flavors
+    # debug a test on all flavors
     #
-    # run an initial debugging test for hm2-idrom; this will fail, but
-    # will expose extra debug messages to help locate the problem
-    DEBUG=5 MSGD_OPTS=-s runtests -v tests/hm2-idrom || true
+    # run an initial debugging test; this will fail, but will expose
+    # extra debug messages to help locate the problem
+    #
+    # DEBUG=5 MSGD_OPTS=-s runtests -v tests/linuxcncrsh || true
 
     runtests -v
 }
