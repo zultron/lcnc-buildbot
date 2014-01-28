@@ -272,15 +272,15 @@ rtapi-init() {
     # Force the flavor for runtests; set non-conflicting instance
     # numbers so a crash in one flavor doesn't hurt another
     case "$buildername" in
-	*-pos-tst) FLAVOR=posix; INSTANCE=1 ;;
-	*-rtp-tst) FLAVOR=rt-preempt; INSTANCE=2 ;;
-	*-x-tst) FLAVOR=xenomai; INSTANCE=3 ;;
-	*-x-k-tst) FLAVOR=xenomai-kernel; INSTANCE=4 ;;
-	*-rtk) FLAVOR=rtai-kernel; INSTANCE=5 ;;
+	*-pos-tst) FLAVOR=posix ;;
+	*-rtp-tst) FLAVOR=rt-preempt ;;
+	*-x-tst) FLAVOR=xenomai ;;
+	*-x-k-tst) FLAVOR=xenomai-kernel ;;
+	*-rtk) FLAVOR=rtai-kernel ;;
 	'') echo "buildername is unset!" 1>&2; exit 1 ;;
 	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
     esac
-    export FLAVOR INSTANCE
+    export FLAVOR
 }
 
 
