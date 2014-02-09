@@ -277,13 +277,6 @@ make -e install DESTDIR=$RPM_BUILD_ROOT \
      DIR='install -d -m 0755' FILE='install -m 0644' \
      EXE='install -m 0755' SETUID='install -m 0755'
 
-# LinuxCNC looks for sample configs in ~/linuxcnc/configs,
-# ${docdir}/linuxcnc/examples/sample-configs,
-# ${sysconfdir}/linuxcnc/configs; because of docdir versioning, the
-# only place that makes sense is the latter.
-mv $RPM_BUILD_ROOT%{_docdir}/linuxcnc/examples/sample-configs \
-   $RPM_BUILD_ROOT%{_sysconfdir}/linuxcnc/configs
-
 # put the docs in the right place
 %if 0%{?fedora} < 20
 # RHEL <= 7 and Fedora <= 19 put version numbers on doc directory
