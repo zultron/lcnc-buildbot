@@ -365,9 +365,18 @@ step-test-environment() {
 	esac
 	echo
     fi
-    echo 'stopping realtime environment:'
-    DEBUG=5 MSGD_OPTS=-s realtime stop || true
-    echo
+    # run 'realtime stop' for all applicable flavors
+    
+    case $(unset FLAVOR; flavor) in
+	xenomai) STOP_FLAVORS="xenomai xenomai-kernel posix" ;;
+	posix) STOP_FLAVORS="posix" ;;
+	*) STOP_FLAVORS="$FLAVOR posix" ;;
+    esac
+    for f in $STOP_FLAVORS; do
+	echo 'stopping realtime environment for flavor $f:'
+	FLAVOR=$f DEBUG=5 MSGD_OPTS=-s realtime stop || true
+	echo
+    done
 }
 
 # read and clear dmesg ring buffer to aid in debugging failed builds
