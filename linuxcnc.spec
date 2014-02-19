@@ -110,6 +110,7 @@ BuildRequires:  ImageMagick
 BuildRequires:  dvipng
 BuildRequires:  dblatex
 BuildRequires:  asciidoc >= 8.5
+BuildRequires:  texlive-babel-french
 %endif
 #
 # Flavor-specific BRs
@@ -399,6 +400,7 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
   version from the installed package instead
 - Add linuxcnc rsyslog config, new in upstream
 - Add BR: xenomai
+- Add BR: texlive-babel-french for Fedora docs
 - Don't set %%attr for libdir/*.so links; silences warning
 - Modules now installed into /usr/lib/linuxcnc; update %%files
 
