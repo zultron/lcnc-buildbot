@@ -35,6 +35,14 @@ num_procs() {
     cat /proc/cpuinfo | grep ^processor | wc -l
 }
 
+# convenience function to test for debian
+is_debian() {
+    case "$distro" in
+	d[0-9]*) return 0 ;;
+	*) return 1 ;;
+    esac
+}
+
 RemoveModules(){
     # Remove a list of modules recursively
     #
@@ -57,6 +65,40 @@ RemoveModules(){
 
     done
 }
+
+debian-chroot-mount() {
+    # debian-chroot-mount
+    for MOUNT in $debian_chroot_mounts $BUILD_TEST_DIR; do
+	# ensure mount directory exists
+	test -d $debian_chroot_basedir/${distro}-${arch}${MOUNT} || \
+	    sudo -n mkdir -p $debian_chroot_basedir/${distro}-${arch}${MOUNT}
+	# bind-mount a directory into the chroot
+        sudo -n mount -o bind $MOUNT \
+	    $debian_chroot_basedir/${distro}-${arch}${MOUNT}
+    done
+}
+
+debian-chroot-umount() {   
+    # reverse list, in case there are mounts under mounts
+    local debian_chroot_umounts
+    for MOUNT in $debian_chroot_mounts; do
+	debian_chroot_umounts="$MOUNT $debian_chroot_umounts"
+    done
+    for MOUNT in $BUILD_TEST_DIR $debian_chroot_umounts; do
+        sudo -n umount $debian_chroot_basedir/${distro}-${arch}${MOUNT}
+    done
+}
+
+debian-chroot-run() {
+    # debian-chroot-run CMD [ ARGS ... ]
+    # Resolve the buildbot uid:gid for the chroot
+    # http://lists.gnu.org/archive/html/coreutils/2012-05/msg00009.html
+    BB_UID_GID=$(cat $debian_chroot_basedir/${distro}-${arch}/etc/passwd | \
+	awk -F : '/^buildbot/ {print $3 ":" $4}')
+    sudo -n chroot --userspec=$BB_UID_GID \
+	$debian_chroot_basedir/${distro}-${arch} "$@"
+}
+
 
 
 ##############################################
@@ -81,7 +123,7 @@ fi
 usage="usage:  $0 <step>"
 step=${1:?$usage}; shift
 
-# If step name begins with 'chroot-', run in mock
+# If step name begins with 'chroot-', run in mock/debroot
 CHROOT=false
 if ! test $step = ${step#chroot-}; then
     CHROOT=true
@@ -90,6 +132,9 @@ fi
 
 # buildbot sets wacky 077 umask
 umask 022
+
+# Debian likes this in chroots
+LANG=C
 
 GIT="git --git-dir=$repository"
 
@@ -127,13 +172,18 @@ if ! $IN_CHROOT && ! $SERVER_SIDE; then
 
 fi
 
+# be sure RPM_VERSION is set
+if test -z "$RPM_VERSION"; then
+    export RPM_VERSION=$(rpm_version linuxcnc.spec)
+fi
+
 
 ##############################################
 # INIT 'ANT'
 
 # Build a clean tarball from git
 step-tarball() {
-    prefix=linuxcnc-$(rpm_version linuxcnc.spec)/
+    prefix=linuxcnc-$RPM_VERSION/
     mkdir -p $changeset_result_dir
     # (use 'dd' so destination is visible in 'bash -x' output)
 
@@ -202,14 +252,14 @@ step-environment() {
 # autogen needed build files
 
 step-autogen() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/src
     ./autogen.sh
 }
 
 # configure the build process - use default options here
 
 step-configure() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/src
     # lcnc doesn't look for {tcl,tk}Config.sh in /usr/lib64 in configure.in
     if test -f /usr/lib64/tkConfig.sh; then
 	ARGS="--with-tkConfig=/usr/lib64/tkConfig.sh"
@@ -226,15 +276,17 @@ step-configure() {
 # start the make process
 
 step-make() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/src
     TARGET=
     if ! test ${buildername%-doc} = ${buildername}; then
 	TARGET=docs
     fi
     make V=1 -j$(num_procs) $TARGET
-    # make the tree writable by the buildbot user
-    chgrp -R mockbuild ..
-    chmod -R g+w ..
+    if ! is_debian; then
+        # in mock:  make the tree writable by the buildbot user
+	chgrp -R mockbuild ..
+	chmod -R g+w ..
+    fi
 }
 
 # create tarball of built source tree in common location for unit
@@ -243,7 +295,7 @@ step-make() {
 step-result-tarball() {
     test -d $result_da_dir || mkdir -p $result_da_dir
     tar cCjf $BUILD_TEST_DIR $built_source_tarball \
-	linuxcnc-$(rpm_version linuxcnc.spec)
+	linuxcnc-$RPM_VERSION
 }
 
 ##############################################
@@ -266,7 +318,7 @@ step-untar-build() {
 # Set up RT environment; used by test-environment and runtest steps
 
 rtapi-init() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION
     source ./scripts/rip-environment
 
     # Force the flavor for runtests; set non-conflicting instance
@@ -405,7 +457,7 @@ step-dmesg() {
 # to run 'sudo /usr/bin/make'
 
 step-setuid() {
-    cd $BUILD_TEST_DIR/linuxcnc-$(rpm_version linuxcnc.spec)/src
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/src
     sudo make setuid
 }
 
@@ -450,12 +502,23 @@ step-build-tarball() {
     cp $git_archive_tarball $TARBALL
 }
 
-# create linuxcnc-2.6-<release>-<shortrev>.src.rpm source package
-step-build-source-package() {
-    rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
+# configure debian package
+step-configure-package() {
+    cd debian
+    ./configure -a
 }
 
-# build source package
+# create linuxcnc-2.6-<release>-<shortrev>.src.rpm or Debian source
+# package
+step-build-source-package() {
+    if is_debian; then
+	dpkg-buildpackage -I -S -us -uc
+    else
+	rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
+    fi
+}
+
+# build binary packages
 step-build-binary-package() {
     # Calculate the mock config name
     case $arch in
@@ -489,10 +552,17 @@ step-build-binary-package() {
 
 if $CHROOT; then
     cmd="$BUILD_TEST_DIR/buildsteps.sh -r $step $BUILD_TEST_DIR"
-    mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
-	--configdir=$mock_config_dir \
-	--shell "buildername=$buildername /bin/bash -xe $cmd"
-    res=$?
+    if is_debian; then
+	trap debian-chroot-umount 0 1 2 3 9 15
+	debian-chroot-mount
+	debian-chroot-run /bin/bash -xe $cmd
+	res=$?
+    else
+	mock -r ${deriv}-${distro_arch} --no-clean $MOCK_OPTS \
+	    --configdir=$mock_config_dir \
+	    --shell "buildername=$buildername /bin/bash -xe $cmd"
+	res=$?
+    fi
 
 else
     step-$step; res=$?
