@@ -474,7 +474,9 @@ step-runtests() {
     #
     # DEBUG=5 MSGD_OPTS=-s runtests -v tests/linuxcncrsh || true
 
-    runtests -v
+    export DEBUG=5
+    export MSGD_OPTS=-s
+    bash -xe runtests -v
 }
 
 # read dmesg ring buffer again in case anything useful was logged 
