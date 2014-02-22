@@ -56,7 +56,8 @@ RemoveModules(){
     for MODULE in $*; do
         # recurse on any dependent modules in /proc/modules
         DEP_MODULES=$(cat /proc/modules | \
-            awk '/^'$MODULE' / { mods=$4; gsub(","," ",mods); print mods }')
+            awk '/^'$MODULE' / { mods=$4; gsub(","," ",mods); \
+		gsub("\[permanent\]","",mods); print mods }')
         test "$DEP_MODULES" = - || RemoveModules $DEP_MODULES
 
         # remove module if still loaded
