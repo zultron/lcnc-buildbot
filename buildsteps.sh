@@ -319,7 +319,7 @@ step-untar-build() {
 # Set up RT environment; used by test-environment and runtest steps
 
 rtapi-init() {
-    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION
+    cd $BUILD_TEST_DIR/linuxcnc-*
     source ./scripts/rip-environment
 
     # Force the flavor for runtests; set non-conflicting instance
@@ -458,7 +458,7 @@ step-dmesg() {
 # to run 'sudo /usr/bin/make'
 
 step-setuid() {
-    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/src
+    cd $BUILD_TEST_DIR/linuxcnc-*/src
     sudo make setuid
 }
 
