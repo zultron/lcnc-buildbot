@@ -505,16 +505,17 @@ step-build-tarball() {
     cp $git_archive_tarball $TARBALL
 }
 
-# configure debian package
+# configure debian package in chroot
 step-configure-package() {
-    cd debian
-    ./configure -a
+    cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/debian
+    ./configure
 }
 
 # create linuxcnc-2.6-<release>-<shortrev>.src.rpm or Debian source
 # package
 step-build-source-package() {
     if is_debian; then
+	cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION
 	dpkg-buildpackage -I -S -us -uc
     else
 	rpmbuild --define "_topdir $(pwd)" -bs SPECS/linuxcnc.spec
@@ -523,29 +524,37 @@ step-build-source-package() {
 
 # build binary packages
 step-build-binary-package() {
-    # Calculate the mock config name
-    case $arch in
-	32) RH_ARCH=i386 ;;
-	64) RH_ARCH=x86_64 ;;
-	*) echo "Unknown arch '$arch'"; exit 1 ;;
-    esac
-    case $distro in
-	el6) MOCK_CONFIG=sl6-$RH_ARCH  ;;
-	el7) MOCK_CONFIG=sl7-$RH_ARCH  ;;
-	fc*) MOCK_CONFIG=$distro-$RH_ARCH ;;
-	*) echo "Unknown distro '$distro'"; exit 1 ;;
-    esac
+    if is_debian; then
+	cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION
+	export DEB_BUILD_OPTIONS="parallel=8"
+	dpkg-buildpackage -us -uc  -rfakeroot
+	# FIXME: what to copy to results dir?
+	ls -l ..
+    else  # RedHat
+        # Calculate the mock config name
+	case $arch in
+	    32) RH_ARCH=i386 ;;
+	    64) RH_ARCH=x86_64 ;;
+	    *) echo "Unknown arch '$arch'"; exit 1 ;;
+	esac
+	case $distro in
+	    el6) MOCK_CONFIG=sl6-$RH_ARCH  ;;
+	    el7) MOCK_CONFIG=sl7-$RH_ARCH  ;;
+	    fc*) MOCK_CONFIG=$distro-$RH_ARCH ;;
+	    *) echo "Unknown distro '$distro'"; exit 1 ;;
+	esac
 
-    # mock wants to write things as root to --resultdir, which means
-    # no NFS.  Work around with an intermediate, local resultdir.
-    mkdir -p $BUILD_TEST_RESULT_DIR
+        # mock wants to write things as root to --resultdir, which means
+        # no NFS.  Work around with an intermediate, local resultdir.
+	mkdir -p $BUILD_TEST_RESULT_DIR
 
-    mock -v -r $MOCK_CONFIG --no-clean --resultdir=$BUILD_TEST_RESULT_DIR \
-	--configdir=$mock_config_dir --unpriv \
-	SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
+	mock -v -r $MOCK_CONFIG --no-clean --resultdir=$BUILD_TEST_RESULT_DIR \
+	    --configdir=$mock_config_dir --unpriv \
+	    SRPMS/$(rpm_nvr SPECS/linuxcnc.spec).src.rpm
 
-    cp $BUILD_TEST_RESULT_DIR/* $result_da_dir
-    rm -r $BUILD_TEST_RESULT_DIR
+	cp $BUILD_TEST_RESULT_DIR/* $result_da_dir
+	rm -r $BUILD_TEST_RESULT_DIR
+    fi
 }
 
 
