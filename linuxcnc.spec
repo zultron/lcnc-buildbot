@@ -323,23 +323,25 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
 %{_datadir}/gtksourceview-2.0
 %{_datadir}/linuxcnc
 %{_datadir}/gscreen
-%lang(de) %{_datadir}/locale/de/LC_MESSAGES/linuxcnc.mo
-%lang(es) %{_datadir}/locale/es/LC_MESSAGES/linuxcnc.mo
-%lang(fi) %{_datadir}/locale/fi/LC_MESSAGES/linuxcnc.mo
-%lang(fr) %{_datadir}/locale/fr/LC_MESSAGES/linuxcnc.mo
-%lang(hu) %{_datadir}/locale/hu/LC_MESSAGES/linuxcnc.mo
-%lang(it) %{_datadir}/locale/it/LC_MESSAGES/linuxcnc.mo
-%lang(ja) %{_datadir}/locale/ja/LC_MESSAGES/linuxcnc.mo
-%lang(pl) %{_datadir}/locale/pl/LC_MESSAGES/linuxcnc.mo
-%lang(pt_BR) %{_datadir}/locale/pt_BR/LC_MESSAGES/linuxcnc.mo
-%lang(ro) %{_datadir}/locale/ro/LC_MESSAGES/linuxcnc.mo
-%lang(ru) %{_datadir}/locale/ru/LC_MESSAGES/linuxcnc.mo
-%lang(sk) %{_datadir}/locale/sk/LC_MESSAGES/linuxcnc.mo
-%lang(sr) %{_datadir}/locale/sr/LC_MESSAGES/linuxcnc.mo
-%lang(sv) %{_datadir}/locale/sv/LC_MESSAGES/linuxcnc.mo
-%lang(zh_CN) %{_datadir}/locale/zh_CN/LC_MESSAGES/linuxcnc.mo
-%lang(zh_HK) %{_datadir}/locale/zh_HK/LC_MESSAGES/linuxcnc.mo
-%lang(zh_TW) %{_datadir}/locale/zh_TW/LC_MESSAGES/linuxcnc.mo
+%{_datadir}/gmoccapy
+%lang(de) %{_datadir}/locale/de/LC_MESSAGES/*.mo
+%lang(es) %{_datadir}/locale/es/LC_MESSAGES/*.mo
+%lang(fi) %{_datadir}/locale/fi/LC_MESSAGES/*.mo
+%lang(fr) %{_datadir}/locale/fr/LC_MESSAGES/*.mo
+%lang(hu) %{_datadir}/locale/hu/LC_MESSAGES/*.mo
+%lang(it) %{_datadir}/locale/it/LC_MESSAGES/*.mo
+%lang(ja) %{_datadir}/locale/ja/LC_MESSAGES/*.mo
+%lang(pl) %{_datadir}/locale/pl/LC_MESSAGES/*.mo
+%lang(pt_BR) %{_datadir}/locale/pt_BR/LC_MESSAGES/*.mo
+%lang(ro) %{_datadir}/locale/ro/LC_MESSAGES/*.mo
+%lang(ro) %{_datadir}/locale/rs/LC_MESSAGES/*.mo
+%lang(ru) %{_datadir}/locale/ru/LC_MESSAGES/*.mo
+%lang(sk) %{_datadir}/locale/sk/LC_MESSAGES/*.mo
+%lang(sr) %{_datadir}/locale/sr/LC_MESSAGES/*.mo
+%lang(sv) %{_datadir}/locale/sv/LC_MESSAGES/*.mo
+%lang(zh_CN) %{_datadir}/locale/zh_CN/LC_MESSAGES/*.mo
+%lang(zh_HK) %{_datadir}/locale/zh_HK/LC_MESSAGES/*.mo
+%lang(zh_TW) %{_datadir}/locale/zh_TW/LC_MESSAGES/*.mo
 %config(noreplace) %{_sysconfdir}/rsyslog.d/linuxcnc.conf
 %config(noreplace) %{_sysconfdir}/security/limits.d/linuxcnc.conf
 %config(noreplace) %{_sysconfdir}/udev/rules.d/50-LINUXCNC-shmdrv.rules
@@ -403,6 +405,7 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
 - Add BR: texlive-babel-french for Fedora docs
 - Don't set %%attr for libdir/*.so links; silences warning
 - Modules now installed into /usr/lib/linuxcnc; update %%files
+- Add gmoccapy files
 
 * Thu Sep  5 2013 John Morris <john@zultron.com> - 2.6.0-0.5.ubc3
 - Update to 2.6.0-20130905git05ed2b1
