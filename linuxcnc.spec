@@ -306,7 +306,7 @@ find %{buildroot} -type f -name \*.ko -exec %{__chmod} u+x \{\} \;
 %endif # _without_xenomai_kernel
 %{_bindir}/[0-9a-km-z]*
 %{_bindir}/linuxcnc
-%{_bindir}/linuxcnc[a-z]*
+%{_bindir}/linuxcnc[a-z_]*
 %{_bindir}/latency*
 %{python_sitearch}/*
 %{_exec_prefix}/lib/tcltk/linuxcnc
