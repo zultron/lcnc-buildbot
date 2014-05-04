@@ -73,7 +73,7 @@ encoding = 'utf8'
 #  * [new branch]      bar        -> bar
 #  + a1576ed...2a22233 foo        -> foo  (forced update)
 updatere=re.compile(r'^(?:\+ )?([^. ]+)\.\.\.?([^. ]+) +([^ ]+) .*')
-newbranchre=re.compile(r'^ ?\* \[new branch\] +([^ ]+) .*')
+newbranchre=re.compile(r'^ ?\* \[new branch\] +([^ ]+) -> ([^ ]+)')
 
 
 changes = []
@@ -325,13 +325,20 @@ def create_repo(rconfig):
 
 
 def check_ancestor(rconfig):
+    # If no common ancestor commit is identified, return true
+    if not rconfig.has_key('only-ancestors-of'):
+        return True
+
     # Return True if ref is a descendent of ancestor
-    rconfig['merge_base'] = os.popen(
+    rconfig['merge_base_symbolic'] = os.popen(
         "%(git)s merge-base %(ancestor)s %(newrev)s" %
         rconfig).readline().strip()
+    rconfig['merge_base'] = os.popen(
+        "%(git)s rev-parse %(merge_base_symbolic)s" %
+        rconfig).readline().strip()
     rconfig['merge_base_s'] = rconfig['merge_base'][:8]
-    logging.debug("found merge_base %(merge_base_s)s for ref "
-                  "%(newrev_s)s and ancestor %(ancestor_s)s" % rconfig)
+    logging.debug("found merge_base %(merge_base_s)s "
+                  "for ref %(newrev_s)s and ancestor %(ancestor_s)s" % rconfig)
     return rconfig['merge_base'] == rconfig['ancestor']
 
 def process_changes(rname,rconfig):
@@ -373,7 +380,7 @@ def process_changes(rname,rconfig):
         if m:
             logging.debug("Found new branch output line:  '%s'" % line)
             # get latest revision
-            rconfig['branch'] = m.group(1)
+            rconfig['branch'] = m.group(2)
             rconfig['newrev'] = os.popen(
                 "%(git)s --git-dir %(dir)s rev-parse %(branch)s" %
                 rconfig).readline().strip()
