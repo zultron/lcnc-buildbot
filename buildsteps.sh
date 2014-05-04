@@ -1,5 +1,22 @@
 #!/bin/bash -e
 
+# Uncomment this to print lots of debug output
+#DEBUG=true
+# (Otherwise debug is false)
+test -n "$DEBUG" || DEBUG=false
+
+# Enable verbose tarball packing/unpacking
+if $DEBUG; then TAR_ARGS="$TAR_ARGS -v"; fi
+
+# If pbzip2 exists, use it
+/usr/bin/which pbzip2 >& /dev/null && BZIP2=pbzip2 || BZIP2=bzip2
+TAR_ARGS="$TAR_ARGS -I $BZIP2"
+
+# print the build slave name so we know where we are :-/
+echo "Build slave hostname:  $(hostname)"
+
+set -x
+
 ##############################################
 # CONVENIENCE ROUTINES
 
@@ -149,6 +166,7 @@ if ! $IN_CHROOT && ! $SERVER_SIDE; then
     case $arch in
 	32) distro_arch=i386 ;;
 	64) distro_arch=x86_64 ;;
+	arm) distro_arch=armhfp ;;
 	"") arch=64;  # pick an arch arbitrarily for e.g. docs
 	    distro_arch=x86_64 ;;
     esac
@@ -189,7 +207,7 @@ step-tarball() {
     # (use 'dd' so destination is visible in 'bash -x' output)
 
     $GIT archive --prefix=$prefix "$revision" | \
-	bzip2 | dd of=$git_archive_tarball
+	$BZIP2 | dd of=$git_archive_tarball
 }
 
 ##############################################
@@ -205,14 +223,12 @@ step-init() {
 #
 # Build LinuxCNC in a mock chroot environment; includes building docs
 
-# Clear and populate working subdirectory from the repo.  At
-# the same time, copy 'buildsteps.sh' here, accessible in the chroot.
+# Populate working subdirectory from the repo.  At the same time, copy
+# 'buildsteps.sh' here, accessible in the chroot.
 
 step-sourcetree() {
-    sudo -n rm -rf $BUILD_TEST_DIR
-    mkdir -p $BUILD_TEST_DIR
-    tar xCjf $BUILD_TEST_DIR $git_archive_tarball
-
+    # set up build materials
+    tar xCf $BUILD_TEST_DIR $git_archive_tarball $TAR_ARGS
     cp buildsteps.sh linuxcnc.spec $BUILD_TEST_DIR
 }
 
@@ -294,8 +310,11 @@ step-make() {
 # testing
 
 step-result-tarball() {
+    # don't tar results for doc builds
+    test ${buildername#${distro}-} = doc && return
+
     test -d $result_da_dir || mkdir -p $result_da_dir
-    tar cCjf $BUILD_TEST_DIR $built_source_tarball \
+    tar cCf $BUILD_TEST_DIR $built_source_tarball $TAR_ARGS \
 	linuxcnc-$RPM_VERSION
 }
 
@@ -305,14 +324,8 @@ step-result-tarball() {
 # Unpack the build result tarball created in the 'build' builder.
 
 step-untar-build() {
-    if ! test ${buildername%-doc} = ${buildername}; then
-	# don't create tarball for docs
-	return 1
-    fi
-    rm -rf $BUILD_TEST_DIR
-    mkdir -p $BUILD_TEST_DIR
     cd $BUILD_TEST_DIR
-    tar xjf $built_source_tarball
+    tar xf $built_source_tarball $TAR_ARGS
 }
 
 
@@ -557,6 +570,35 @@ step-build-binary-package() {
     fi
 }
 
+
+##############################################
+# INIT AND CLEAN BUILDROOT
+
+step-init-buildroot() {
+    # ensure directory exists
+    if ! test -d $BUILD_TEST_DIR; then
+	mkdir -p $BUILD_TEST_DIR
+    fi
+    # ensure tmpfs is mounted
+    if ! df -t tmpfs $BUILD_TEST_DIR >& /dev/null; then
+	sudo -n mount -t tmpfs -o uid=buildbot,mode=755 tmpfs $BUILD_TEST_DIR
+    fi
+    if $DEBUG; then df -h $BUILD_TEST_DIR; fi
+    # ensure build root is clean
+    sudo -n rm -rf $BUILD_TEST_DIR/*
+}
+
+# A common step to clean things up; right now, just unmount tmpfs
+step-clean-buildroot() {
+    # if the build directory is a tmpfs, unmount it, if possible
+    if df -t tmpfs $BUILD_TEST_DIR >&/dev/null; then
+	df -h -T $BUILD_TEST_DIR
+	sudo -n umount -t tmpfs $BUILD_TEST_DIR
+    else
+	echo "Build directory $BUILD_TEST_DIR was not a tmpfs mount!" 1>&2
+	exit 1
+    fi
+}
 
 
 ##############################################
