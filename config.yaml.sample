@@ -1,514 +1,106 @@
-##################################                          -*-yaml-*-
+#########################################################   -*-yaml-*-
+#
+# Machinekit BuildBot Configuration
+# 
+# To add a new distro:  add to enumerations/distro section
+#
+# To disable a particular distro-arch-flavor: add to
+# enumerations/exclude section
+#
+# To add a new build slave:  see the slaves section
+#
+#########################################################
+# Global and misc. sections
+#
 global:
+#
 # global settings
 #
-# buildbot 0.8.6 has no facility for setting the umask (0.8.8 has a
-# 'umask' parameter in buildbot.tac), so set in in the configuration;
-# this is useful for slaves fetching a gitpoller repo over http
+  #
+  # buildbot 0.8.6 has no facility for setting the umask (0.8.8 has a
+  # 'umask' parameter in buildbot.tac), so set in in the configuration;
+  # this is useful for slaves fetching a gitpoller repo over http
+  #
   umask: 022
-#
-# slave connection TCP port number
+  #
+  # slave connection TCP port number
+  #
   slavePortnum: 9989
-#
-# Names of properties to pass through environment to all
-# builders/buildsteps
+  #
+  # properties to pass through environment to builders
+  #
   env-properties:
     - repository
     - revision
     - buildername
-## environment variables to pass to builders
+    - distro
+    - arch
+    - flavor
+  #
+  # environment variables to pass to builders
+  #
   env:
     CCACHE_DIR: /var/lib/buildslave/ccache
-#
-##################################
-identity:
-# the 'title' string will appear at the top of this buildbot
-# installation's html.WebStatus home page (linked to the 'titleURL')
-# and is embedded in the title of the waterfall HTML page.
-  title: Unified Build Candidate
-  titleURL: http://www.linuxcnc.org
-# the 'buildbotURL' string should point to the location where the
-# buildbot's internal web server (usually the html.WebStatus page) is
-# visible. This typically uses the port number set in the Waterfall
-# 'status' entry, but with an externally-visible host name which the
-# buildbot cannot figure out without some help.
-  buildbotURL: http://localhost:8010/
+    # mock chroot configs customized for source builds
+    mock_config_dir: /home/buildbot/mock-configs
+    # Where to put results
+    result_dir: /home/buildbot/results
+    # Debian chroot:  base directory
+    debian_chroot_basedir: /d/mock/debootstrap
+    # Debian chroot:  directories to bind mount
+    debian_chroot_mounts: /proc /sys /dev /dev/pts
+  #
+  # build factory 'script'-type step defaults
+  #
+  step-defaults:
+    # Number of seconds with no output before killing
+    timeout: 100
+    # Maximum seconds job may run (even w/output) before killing
+    maxTime: 1200
 
-##################################
-db:
+identity:
+#
+# Parameters identifying buildbot
+#
+  # Shows up in page titles and in some places on the page
+  title: Machinekit
+  # The hyperlink for the title
+  titleURL: http://www.machinekit.io
+  # Set this to the 'outside' reverse-proxy URL of the buildbot
+  buildbotURL: http://bb0.cf0.zultron.com/
+
+#
 # database URL
 #
-# http://docs.buildbot.net/0.8.5/manual/cfg-global.html#database-specification
+#   http://docs.buildbot.net/0.8.5/manual/cfg-global.html#database-specification
+db:
+  # Run DB in sqlite; is there any need for a regular DB?
   db_url: sqlite:///state.sqlite
 
-##################################
-slaves:
-# build slave -> password map
-#
-# Slaves commented out will be implemented in the future
-#
-# Passwords may be generated with
-#    apg -M ncl -m 30 -x 30 -n 1
-#
-# Set default parameters for slaves in the DEFAULT slave.  Parameters
-# may be overridden in individual slave definitions.
-  DEFAULT:
-    max_builds: 1
-# Arbitrary properties may be defined in slave definitions.  In this
-# example, three properties double as 'slave classes', used to match
-# slaves to builders; see the builders section below.
-  jessie-rtpreempt-amd64-vm1:
-    secret: *bspasswd*
-    properties:
-      rtos-flavor: rtpreempt
-      arch: amd64
-      distro: jessie
-  raring-xenomai-i386-vm1: *bspasswd*
-    secret: *bspasswd*
-    properties:
-      rtos-flavor: xenomai
-      arch: i386
-      distro: raring
-  raring-xenomai-amd64-vm1: *bspasswd*
-    secret: *bspasswd*
-    properties:
-      rtos-flavor: xenomai
-      arch: amd64
-      distro: raring
-  wheezy-xenomai-armv7l-bbb1:
-    secret: *bspasswd*
-    properties:
-      rtos-flavor: xenomai
-      arch: armv7l
-      distro: wheezy
 
-
-##################################
-schedulers:
-# scheduler configs
 #
-# Scheduler configuration docs:
-# http://docs.buildbot.net/latest/manual/cfg-schedulers.html#configuring-schedulers
+# UserID -> password map
 #
-# The 'source' scheduler builds any commit in any branch.
-#
-# A scheduler may be mapped to one or more builders/factories.  The
-# 'builder_factory' parameter is an arbitrary name used in builders'
-# 'factory' parameter to associate each builder to a scheduler.
-#
-# The below 'source' scheduler waits 30 seconds before scheduling the
-# build in case straggler commits arrive that may be combined in one
-# build.
-#   source:
-#     class: AnyBranchScheduler
-#     buildertype: source
-#     builder_factory: build
-#     treeStableTimer: 30
-#   docs:
-#     class: AnyBranchScheduler
-#     builder_factory: build-docs
-#     treeStableTimer: 30
-# # The 'packages' scheduler is a 'Dependent' scheduler, and only
-# # schedules builds if builds from the 'source' scheduler (above)
-# # succeed
-#   packages:
-#     class: Dependent
-#     builder_factory: package
-#     upstream: source
-# # The following allow builds to be forced from the Web UI
-#   source-force:
-#     class: ForceScheduler
-#     builder_factory: build
-#   docs-force:
-#     class: ForceScheduler
-#     builder_factory: build-docs
-#
-# The following schedulers are 'triggered' from the 'checkin' build
-# factory.
-  source-trig:
-    class: Triggerable
-    builder_factory: build
-  docs-trig:
-    class: Triggerable
-    builder_factory: build-docs
-  packages-trig:
-    class: Triggerable
-    builder_factory: package
-# The 'checkin' scheduler is the main entry point for a new change
-# set.  It is associated with the 'checkin' builder, which 'triggers'
-# the above schedulers as separate build steps.
-  checkin:
-    class: AnyBranchScheduler
-    builder_factory: checkin
-    treeStableTimer: 10
-# The force scheduler allow builds to be forced from the Web UI.
-  force:
-    class: ForceScheduler
-    builder_factory: checkin
-
-##################################
-changesources:
-# changesource configs
-#
-# These settings tell the buildmaster how it should find out about
-# source code changes.
-#
-# The multi-multi-git-poller type change source is really a
-# PBChangeSource that shares configuration with the post-receive.py
-# script run out of cron.
-#
-# The first time post-receive.py runs, it clones the 'remote' git repo
-# into the 'dir' location.  Thereafter, it runs 'git fetch', and any
-# changes are passed to the buildbot's PBChangeSource.  It
-# authenticates with the 'user' ID, and pulls the password from the
-# 'auth' section, below.
-#
-# post-receive.py can be told to only submit changes that are ancestor
-# commits of some base revision in the 'only-ancestor-of' parameter.
-# This is used to filter for 'Unified Build Candidate' branches in
-# this example.
-#
-# The 'local-remote' parameter is a URL that slaves will fetch from.
-# A web server should be configured to expose the git repo in 'dir'
-# location.  See the 'HOW-TO-local-git-repo' document.
-#
-# The 'revlink' parameter is used by the buildbot web interface to
-# generate a link to the upstream git repository's commit for the
-# users' convenience.  The single '%s' should be replaceable by the
-# SHA1 of the commit to complete the URL.
-#
-# http://docs.buildbot.net/latest/manual/cfg-changesources.html#chsrc-PBChangeSource
-
-  ubc-repos:
-    type: multi-multi-git-poller
-    user: git-poller
-    git-repos:
-      gh-mhaberler:
-        dir: /home/buildbot/git-repos/gh-mhaberler-linuxcnc.git
-        remote: https://github.com/mhaberler/linuxcnc.git
-        local-remote: http://buildmaster.example.com/git/gh-mhaberler-linuxcnc.git
-        revlink: https://github.com/mhaberler/linuxcnc/commit/%s
-        only-ancestors-of: e31ef6ca
-      gh-zultron:
-        dir: /home/buildbot/git-repos/gh-zultron-linuxcnc.git
-        remote: https://github.com/zultron/linuxcnc.git
-        local-remote: http://buildmaster.example.com/git/gh-zultron-linuxcnc.git
-        revlink: https://github.com/zultron/linuxcnc/commit/%s
-        only-ancestors-of: e31ef6ca
-      glo:
-        dir: /home/buildbot/git-repos/glo-linuxcnc.git
-        remote: git://git.linuxcnc.org/git/linuxcnc.git
-        local-remote: http://buildmaster.example.com/git/glo-linuxcnc.git
-        revlink: http://git.linuxcnc.org/gitweb?p=linuxcnc.git;a=commit;h=%s
-        only-ancestors-of: e31ef6ca
-
-
-##################################
-buildfactories:
-# Build factories with steps
-#
-# Each build factory contains a list of steps.
-#
-# If a step has no 'type' attribute, or type is 'script', it is
-# assumed to be in the script pointed to by the 'buildsteps-script'
-# file, and executed with '<script> <step>'.  If a 'server-side'
-# attribute is 'True', the script will be run on the build master
-# instead of the slaves.
-#
-# An optional 'env-properties' list of property names will be added to
-# the build step's environment along with the global 'env-properties'
-# list.
-#
-# The 'checkin' build factory is a sort of meta-build factory.  Its
-# build steps 'trigger' other schedulers that run other build
-# factories.
-  checkin:
-    steps:
-      - name: trigger-source
-        type: trigger
-        schedulerNames:
-          - source-trig
-        waitForFinish: True
-      - name: trigger-docs
-        type: trigger
-        schedulerNames:
-          - docs-trig
-        waitForFinish: True
-      - name: trigger-packages
-        type: trigger
-        schedulerNames:
-          - packages-trig
-        waitForFinish: True
-#
-# The 'build' build factory compiles the code from source.
-  build:
-    buildsteps-script: buildsteps.sh
-    steps:
-# The 'init' step runs 'buildsteps.sh init' on the slave.  The script
-# fetches the git repo using the link from the scheduler's
-# 'local-remote' parameter; see above.
-      - name: init
-        description:
-          - fetching
-          - (or cloning)
-          - git repo
-      - name: sourcetree
-        description:
-          - unpacking
-          - clean
-          - source
-          - tree
-# The 'dmesg' step needs to run sudo, which is configured by default
-# to require a pty on some distros.  Setting 'usePTY' to True
-# allocates a pty.
-      - name: dmesg
-        usePTY: True
-        description:
-          - read and
-          - clear
-          - dmesg
-          - buffer
-      - name: environment
-        description:
-          - collect
-          - environment
-          - info
-      - name: autogen
-        description:
-          - autogen
-      - name: configure
-        description:
-          - configure
-      - name: make
-        description:
-          - make
-      - name: setuid
-        usePTY: True
-        description:
-          - make
-          - setuid
-      - name: runtests
-        description:
-          - runtests
-      - name: closeout
-        description:
-          - read
-          - dmesg
-          - buffer
-#
-# The 'build-docs' factory builds documentation.
-  build-docs:
-    buildsteps-script: buildsteps.sh
-    steps:
-      - name: init
-        description:
-          - fetching
-          - (or cloning)
-          - git repo
-      - name: sourcetree
-        description:
-          - unpacking
-          - clean
-          - source
-          - tree
-      - name: environment
-        description:
-          - collect
-          - environment
-          - info
-      - name: autogen
-        description:
-          - autogen
-      - name: configure-docs
-        description:
-          - configure
-          - doc
-          - build
-      - name: make-docs
-        description:
-          - make
-          - docs
-#
-# The 'package' factory builds packages.
-  package:
-    buildsteps-script: buildsteps.sh
-    steps:
-      - name: init
-        description:
-          - fetching
-          - (or cloning)
-          - git repo
-      - name: sourcetree
-        description:
-          - unpacking
-          - clean
-          - source
-          - tree
-      - name: environment
-        description:
-          - collect
-          - environment
-          - info
-      - name: source-rpm
-        description:
-          - build
-          - source
-          - RPM
-      - name: binary-rpm
-        description:
-          - build
-          - binary
-          - RPM
-
-
-##################################
-builders:
-# builder configuration name -> build slave list map
-#
-# builders run one type of job, and there is often a 1:1 relationship
-# with build factories.
-#
-# As with build slaves, defaults may be set in the DEFAULT
-# configuration.
-#
-# The 'slaveclasses' configuration contains a set of class: class-name
-# pairs.  Each slave's 'parameters' configuration will be examined,
-# and it contains all pairs defined in the builder configuration, it
-# is associated with the builder.  For example, the 'fc19-32-rtpreempt' builder 
-#
-# builder configs whose hosts are all commented out above may be defined,
-# and will be skipped
-  DEFAULT:
-    factory: build
-    priority: 50
-#
-# The 'checkin' builder associates the 'checkin' scheduler with the
-# 'checkin' build factory.
-  checkin:
-    factory: checkin
-#
-# build and run tests:  these builds are distro- and arch-specific; the
-# rtos flavor also must match, except for 'posix' flavor builds, which
-# may be done on both rtpreempt and xenomai machines.
-  jessie-rtpreempt-amd64:
-    slaveclasses:
-      rtos-flavor: rtpreempt
-      arch: amd64
-      distro: jessie
-  jessie-posix-amd64:
-    slaveclasses:
-      arch: amd64
-      distro: jessie
-  raring-xenomai-i386:
-    slaveclasses:
-      rtos-flavor: xenomai
-      arch: i386
-      distro: raring
-  raring-posix-i386:
-    slaveclasses:
-      arch: i386
-      distro: raring
-  raring-xenomai-amd64:
-    slaveclasses:
-      rtos-flavor: xenomai
-      arch: amd64
-      distro: raring
-  raring-posix-amd64:
-    slaveclasses:
-      arch: amd64
-      distro: raring
-  wheezy-xenomai-armv7l:
-    slaveclasses:
-      rtos-flavor: xenomai
-      arch: armv70
-      distro: wheezy
-  wheezy-posix-armv7l:
-    slaveclasses:
-      arch: armv70
-      distro: wheezy
-#
-# build documentation: this is distro-specific only, and may be run on
-# a host with any RT kernel and any architecture; in this example,
-# 'raring-docs' will be matched to two slaves, raring-xenomai-i386-vm1
-# and raring-xenomai-amd64-vm1.
-  jessie-docs:
-    slaveclasses:
-      distro: jessie
-    factory: build-docs
-    priority: 60
-  raring-docs:
-    slaveclasses:
-      distro: raring
-    factory: build-docs
-    priority: 60
-  wheezy-docs:
-    slaveclasses:
-      distro: wheezy
-    factory: build-docs
-    priority: 60
-#
-# build packages: in Debian, this is distro- and arch-specific, but
-# does not depend on the running kernel, although the various RT
-# flavors' development environment must be installed.  (In Red Hat,
-# x86 32-bit and 64-bit are built on the same host, so only 64-bit
-# hosts may build packages.)
-  jessie-amd64-packages:
-    slaveclasses:
-      distro: jessie
-      arch: amd64
-    factory: package
-    priority: 70
-  jessie-i386-packages:
-    slaveclasses:
-      distro: jessie
-      arch: i386
-    factory: package
-    priority: 70
-  raring-amd64-packages:
-    slaveclasses:
-      distro: raring
-      arch: amd64
-    factory: package
-    priority: 70
-  raring-i386-packages:
-    slaveclasses:
-      distro: raring
-      arch: i386
-    factory: package
-    priority: 70
-  wheezy-amd64-packages:
-    slaveclasses:
-      distro: wheezy
-      arch: amd64
-    factory: package
-    priority: 70
-  wheezy-i386-packages:
-    slaveclasses:
-      distro: wheezy
-      arch: i386
-    factory: package
-    priority: 70
-
-##################################
 auth:
-# user ID -> password map
-#
-# The list of users and passwords.
-#
-# The multi-multi-git-poller configuration specifies a user ID that
-# must be present here.
-  user1: *bspasswd*
-  git-poller:  *bspasswd*
+  user1: password
+  user2: password
 
-##################################
+#
+# 'Status' clients, mainly the web UI
+#
 status:
-# Web status interface configuration
+  #
+  # The web status UI configuration
+  #
   webstatus:
     class: WebStatus
     http_port: 8010
     order_console_by_time: True
     authz:
+      # If the reverse proxy does auth, comment out this and uncomment
+      # the next line; this doesn't work, maybe a 0.8.6 problem.
       class: BasicAuth
+      # useHttpHeader: True
       gracefulShutdown: True
       forceBuild: 'auth'
       forceAllBuilds: True
@@ -516,4 +108,833 @@ status:
       stopBuild: True
       stopAllBuilds: True
       cancelPendingBuild: True
+      
+enumerations:
+#
+# Enumerations are a handy way to expand e.g. '%(distro)-%(arch)'
+# into [ 'el6-64', 'el6-32', 'fc20-64', ... ].  This buildbot is
+# concerned with three dimensions: distro, arch and flavor.
+#
+  distro:
+    - el6
+    - fc20
+    - fc19
+    - d7
+    # - d8
+  arch:
+    # Enclose in quotes or they will be interpreted as integers
+    - '64'
+    - '32'
+    # - 'arm' # not ready
+  flavor:
+    - rtp
+    - pos
+    - x
+    - x-k
+  #
+  # 'Orderings' arrange the above dimensions into a specific order.
+  # FIXME: Is this only be useful in the 'exclude' section below?
+  #
+  orderings:
+    distro-arch-flavor:
+      - distro
+      - arch
+      - flavor
+    distro-arch:
+      - distro
+      - arch
+      - pass:flavor  # build factory trigger steps may expand %(flavor)
+    distro:
+      - distro
+    flavor:
+      - flavor
+  #
+  # Use the 'exclude' list of regular expressions to disable specific
+  # combinations that are disallowed.  Order the elements according to
+  # the above and separate with dashes.  FIXME: Is there another less
+  # hackish but equally brief way of doing this?
+  #
+  exclude:
+    - el6-32-rtp   # no 32-bit rt-preempt kernel for el6
+    - (el6|fc19)-arm  # no ARM arch for el6 or fc19
+    - fc20-arm-(rtp|x-k)  # no rtpreempt on ARM; xeno-kernel irrelevant?
+    - d7-arm  # no ARM Debian builder for now
+
+#########################################################
+schedulers:
+# Schedulers start builders.  They are mainly useful in two cases:
+#
+# 1) Starting a build from outside events, like a VCS checkin or a
+# human requesting a build
+#
+# 2) Scheduling compute resources for parts of the build flow that are
+# repeated with different parameters.  Examples:  a source build run
+# once per distro/arch combo; unit tests run once per RT thread
+# flavor.
+#
+# Configuration docs:
+#   http://docs.buildbot.net/latest/manual/cfg-schedulers.html
+# AnyBranchScheduler:
+#   http://docs.buildbot.net/latest/manual/cfg-schedulers.html#anybranchscheduler
+# ForceScheduler:
+#   http://docs.buildbot.net/latest/manual/cfg-schedulers.html#forcescheduler-scheduler
+#
+  #
+  # Non-doc schedulers starting builds from outside events
+  #
+  ant:
+    # Start a new build after a new git commit; see 'post-receive.py'
+    class: AnyBranchScheduler
+    builder_factory: ant
+    treeStableTimer: 10
+    selectors:
+      type: meta
+  #
+  ant-force:
+    # Start a new build when a user clicks 'force build' on the web UI
+    class: ForceScheduler
+    builder_factory: ant
+    selectors:
+      type: meta
+  #
+  # A per-distro/arch controlling scheduler for the main
+  # build/test/pkg workflow triggered from 'ant' (its name, 'bee', is
+  # hidden from users)
+  #
+  "%(distro)s-%(arch)s":
+    class: Triggerable
+    builder_factory: bee
+    enumerate: distro-arch
+    # fileIsImportant:  # only build changesets that modify files in 'docs/'
+    #   type: changeset_file_regex
+    #   regex: '^(?!docs/)'
+    selectors:
+      type: meta
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+  #
+  "%(distro)s-%(arch)s-force":
+    # Start a new build when a user clicks 'force build' on the web UI
+    class: ForceScheduler
+    builder_factory: bee
+    enumerate: distro-arch
+    selectors:
+      type: meta
+      distro: '%(distro)s'
+      arch: '%(arch)s'
+  #
+  # The build/test/pkg schedulers, triggered from 'bee'
+  #
+  build-%(distro)s-%(arch)s:
+    # RIP build scheduler
+    class: Triggerable
+    builder_factory: build
+    enumerate: distro-arch
+    selectors:
+      type: fatty
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+  #
+  test-%(distro)s-%(arch)s-%(flavor)s:
+    # Unit test 'runtests' scheduler for each flavor
+    class: Triggerable
+    builder_factory: test
+    enumerate: distro-arch-flavor
+    selectors:
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+      flavor: '%(flavor)s'
+  #
+  package-%(distro)s-%(arch)s:
+    # Package build scheduler
+    class: Triggerable
+    builder_factory: package
+    enumerate: distro-arch
+    selectors:
+      type: fatty
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+  #
+  # Doc schedulers starting doc builds from outside events
+  #
+  docs-%(distro)s:
+    # Start a new build after a new git commit; see 'post-receive.py'
+    class: Triggerable
+    builder_factory: build
+    # fileIsImportant:  # only build changesets that modify files in 'docs/'
+    #   type: changeset_file_regex
+    #   regex: '^docs/'
+    enumerate: distro
+    selectors:
+      type: fatty
+      distro: '%(distro)s'
+
+
+#########################################################
+builders:
+#
+# Builders associate build factories (with lists of steps) to build
+# slaves (where the steps run).
+#
+# With the 'enumerate' param, one builder specification can be
+# 'enumerated' into e.g. each combination of distro and architecture
+# (see 'enumerations' section above).
+  #
+  # Defaults:  default priority 50
+  # 
+  DEFAULT:
+    priority: 50
+  #
+  # the 'ant' builder:  trigger schedulers for the main workflow on
+  # each distro+arch; triggers don't actually run on build slaves, so
+  # configure type 'meta' to run on a fake slave
+  #
+  ant:
+    factory: ant
+    selectors:
+      type: meta
+  #
+  # a 'bee' builder for each distro/arch:  trigger build/test/package
+  # schedulers; type 'meta'
+  #
+  "%(distro)s-%(arch)s":
+    factory: bee
+    enumerate:  distro-arch
+    selectors:
+      type: meta
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+  #
+  # a 'build' builder for each distro/arch:  RIP build in a chroot on a
+  # 'fatty' host with many CPUs
+  #
+  "%(distro)s-%(arch)s-bld":
+    factory: build
+    enumerate:  distro-arch
+    selectors:
+      type: fatty
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+  #
+  # a 'test' builder for each distro/arch/flavor:  run unit tests for
+  # each RT flavor on minimal slaves with RT kernels
+  #
+  "%(distro)s-%(arch)s-%(flavor)s-tst":
+    factory: test
+    enumerate: distro-arch-flavor
+    selectors:
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+      flavor: '%(flavor)s'
+  #
+  # a 'package' builder for each distro/arch:  build rpms in a chroot
+  # on the 'fatty' host
+  #
+  "%(distro)s-%(arch)s-pkg":
+    factory: package
+    enumerate: distro-arch
+    selectors:
+      type: fatty
+      arch: '%(arch)s'
+      distro: '%(distro)s'
+    priority: 25
+  #
+  # a 'docs' builders for each distro:  build docs in a chroot on the
+  # 'fatty' host
+  #
+  # uses same factory as 'bee' for building souce in chroot
+  #
+  "%(distro)s-doc":
+    factory: build
+    enumerate: distro
+    selectors:
+      type: fatty
+      distro: '%(distro)s'
+    priority: 75
+
+
+#########################################################
+buildfactories:
+# Each build factory contains a list of steps to complete a build.
+#
+# If a step has no 'type' param, it is assumed to be in the script
+# pointed to by the 'buildsteps-script' url, and executed with
+# '<script> <step>'.
+#
+# For each %(distro)s-%(arch)s combo:
+#   - run the Universal Build
+#   - trigger runtests (without waiting)
+# ...repeat
+#
+# This should run on a host with many CPUs to maximize -j<cpus>, and
+# thus will require a chroot environment for each %(distro)s-%(arch)s
+# combo.
+#
+  #
+  # A new change set will start with the 'ant' build factory.
+  #
+  # This factory triggers the main workflow 'bee' schedulers for each
+  # distro+arch combo, and the 'doc' schedulers for each distro.
+  #
+  ant:
+    copy-files:
+      - buildsteps.sh
+      - linuxcnc.spec
+    steps:
+      - name: tarball
+        description:
+          - build
+          - source
+          - tarball
+      - name: build-source+docs
+        type: trigger
+        enumerate-attrs:
+          schedulerNames: distro-arch
+        schedulerNames:
+          - '%(distro)s-%(arch)s'
+          - 'docs-%(distro)s'
+        waitForFinish: True
+  #
+  # The main workflow factory for each distro+arch combo, 'bee':
+  #
+  # - Trigger the RIP build schedulers (wait for them to finish)
+  # - Then trigger following schedulers (scheduled in parallel)
+  #   - Runtests for each RT thread flavors
+  #   - The package build
+  #
+  bee:
+    copy-files:
+      - buildsteps.sh
+      - linuxcnc.spec
+    steps:
+      #
+      # Init:  create new tarball (build master)
+      #
+      - name: init
+        description:
+          - prep
+          - distro
+          - build
+
+      #
+      # Build:  trigger build schedulers for each distro/arch (fat slave)
+      #
+      - name: build-%(distro)s-%(arch)s
+        type: trigger
+        schedulerNames:
+          - build-%(distro)s-%(arch)s
+        enumerate: distro-arch
+        selectors:
+          distro: '%(distro)s'
+          arch: '%(arch)s'
+        doStepIf: match_build_distro_arch
+        waitForFinish: True
+
+      #
+      # Test and package:  in parallel, run unit tests (on flavor
+      # slaves) and build packages (on fat slave)
+      #
+      - name: test+pkg-%(distro)s-%(arch)s
+        type: trigger
+        enumerate-attrs:
+          schedulerNames: distro-arch-flavor
+        schedulerNames:
+          - test-%(distro)s-%(arch)s-%(flavor)s
+          - package-%(distro)s-%(arch)s
+        enumerate: distro-arch
+        selectors:
+          distro: '%(distro)s'
+          arch: '%(arch)s'
+        doStepIf: match_build_distro_arch
+        waitForFinish: True
+
+      # - name: package-%(distro)s-%(arch)s
+      #   type: trigger
+      #   schedulerNames:
+      #     - package-%(distro)s-%(arch)s
+      #   enumerate: distro-arch
+      #   selectors:
+      #     arch: '%(arch)s'
+      #     distro: '%(distro)s'
+      #   doStepIf: match_build_distro_arch
+      #   waitForFinish: True
+
+
+  #
+  # The 'build' factory performs the RIP build for a particular distro
+  # and architecture.
+  #
+  # This is used for both source and doc builds, with tests in
+  # buildsteps.sh to control the differences.
+  #
+  build:
+    copy-files:
+      - buildsteps.sh
+      - linuxcnc.spec
+    steps:
+      - name: init-buildroot
+        description:
+          - init
+          - buildroot
+        usePTY: True
+      - name: sourcetree
+        description:
+          - unpacking
+          - clean
+          - source
+          - tree
+        usePTY: True
+      - name: chroot-environment
+        description:
+          - collect
+          - environment
+          - info
+        usePTY: True
+      - name: chroot-autogen
+        description:
+          - autogen
+        usePTY: True
+      - name: chroot-configure
+        description:
+          - configure
+        usePTY: True
+      - name: chroot-make
+        description:
+          - make
+        usePTY: True
+        warnOnWarnings: True
+      - name: result-tarball
+        description:
+          - tar up
+          - built
+          - source
+          - tree
+        usePTY: True
+      - name: clean-buildroot
+        description:
+          - clean
+          - buildroot
+        usePTY: True
+        alwaysRun: True
+
+  #
+  # The 'test' factory runs unit tests for a particular distro + arch
+  # + flavor.
+  #
+  # The script scrapes the flavor from the scheduler name.  (Bit of a
+  # hack...)
+  #
+  test:
+    copy-files:
+      - buildsteps.sh
+      - linuxcnc.spec
+    steps:
+      - name: init-buildroot
+        description:
+          - init
+          - buildroot
+        usePTY: True
+      - name: untar-build
+        description:
+          - unpack
+          - build
+          - result
+          - tarball
+        usePTY: True
+      - name: setuid
+        usePTY: True
+        description:
+          - make
+          - setuid
+      - name: test-environment
+        description:
+          - collect
+          - environment
+          - info
+      - name: dmesg
+        usePTY: True
+        description:
+          - read and
+          - clear
+          - dmesg
+          - buffer
+      - name: runtests
+        description:
+          - runtests
+        usePTY: True
+      - name: closeout
+        description:
+          - read
+          - dmesg
+        usePTY: True
+        alwaysRun: True
+      - name: clean-buildroot
+        description:
+          - clean
+          - buildroot
+        usePTY: True
+        alwaysRun: True
+
+  #
+  # The 'package' factory builds packages for a particular distro + arch.
+  #
+  package:
+    copy-files:
+      - buildsteps.sh
+      - linuxcnc.spec
+    steps:
+      - name: init-buildroot
+        description:
+          - init
+          - buildroot
+        usePTY: True
+      - name: build-tarball
+        doStepIfDistro: '^(fc|el)[0-9]+'
+        description:
+          - creating
+          - source
+          - tarball
+      - name: build-source-package
+        doStepIfDistro: '^(fc|el)[0-9]+'
+        description:
+          - build
+          - source
+          - package
+      - name: build-binary-package
+        doStepIfDistro: '^(fc|el)[0-9]+'
+        description:
+          - build
+          - binary
+          - package
+      - name: sourcetree
+        doStepIfDistro: '^d[0-9]+'
+        description:
+          - unpacking
+          - clean
+          - source
+          - tree
+        usePTY: True
+      - name: chroot-configure-package
+        doStepIfDistro: '^d[0-9]+'
+        description:
+          - configuring
+          - debian
+          - package
+        usePTY: True
+      - name: chroot-build-source-package
+        doStepIfDistro: '^d[0-9]+'
+        description:
+          - building
+          - debian
+          - source
+          - package
+        usePTY: True
+      - name: chroot-build-binary-package
+        doStepIfDistro: '^d[0-9]+'
+        description:
+          - building
+          - debian
+          - binary
+          - package
+        usePTY: True
+      - name: clean-buildroot
+        description:
+          - clean
+          - buildroot
+        usePTY: True
+        alwaysRun: True
+
+
+#########################################################
+slaves:
+#
+# Build slaves do the work of the build factories.
+#
+# By default, build slaves run only one build at a time
+#
+  DEFAULT:
+    max_builds: 1
+  #
+  # builder0 has 8 CPUs and does the heavy lifting of a 'fatty'-type
+  # slave.  It has selectors for all distro/arch combos, and can build
+  # any of them in a chroot.
+  #
+  builder0:
+    secret: <redacted>
+    selectors:
+      type: fatty
+      distro:
+        - el6
+        - fc19
+        - fc20
+        - d7
+        # - d8
+      arch:
+        - '32'
+        - '64'
+  #
+  # fc20-arm-xenomai is ARM arch has 4 CPUs and does the heavy lifting
+  # of a 'fatty'-type slave.  It has selectors for all ARM distro
+  # combos, and can build any of them in a chroot.
+  #
+  # Unfortunately, the host also needs to double as a tester, so it'll
+  # have to be duplicated to test only Fedora.
+  #
+  # fc20-arm-xenomai:
+  #   secret: <redacted>
+  #   selectors:
+  #     type: fatty
+  #     distro:
+  #       - fc20
+  #       # - d7  # not ready
+  #       # - d8
+  #     arch:
+  #       - arm
+  #
+  # bb0 is configured as a 'meta' slave that can run 100 builds.  All
+  # builders require a slave, even though those like 'ant' and 'bee'
+  # don't have steps that run on a slave.  Those builds 'run' on bb0,
+  # not tying up any real build slaves (and we have to maintain a
+  # build slave instance that never actually does anything :P).
+  #
+  bb0:
+    secret: <redacted>
+    selectors:
+      type: meta
+      distro:
+        - el6
+        - fc19
+        - fc20
+        - d7
+        # - d8
+      arch:
+        - '32'
+        - '64'
+        - arm
+    max_builds: 100
+  #
+  # The remaining slaves are for running unit tests only.  They are
+  # configured for a specific distro/arch combo.  Slaves with Xenomai
+  # kernels are configured to run 'xenomai' and 'xenomai-kernel'
+  # tests, and slaves with RT_PREEMPT kernels are configured to run
+  # 'rtpreempt' and 'posix' tests.
+  #
+  d7-64-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: d7
+      arch: '64'
+      flavor:
+        - x
+        - x-k
+  d7-32-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: d7
+      arch: '32'
+      flavor:
+        - x
+        - x-k
+  d7-64-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: d7
+      arch: '64'
+      flavor:
+        - rtp
+        - pos
+  d7-32-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: d7
+      arch: '32'
+      flavor:
+        - rtp
+        - pos
+  # d8-64-xenomai:
+  #   secret: <redacted>
+  #   selectors:
+  #     distro: d8
+  #     arch: '64'
+  #     flavor:
+  #       - x
+  #       - x-k
+  # d8-32-xenomai:
+  #   secret: <redacted>
+  #   selectors:
+  #     distro: d8
+  #     arch: '32'
+  #     flavor:
+  #       - x
+  #       - x-k
+  # d8-64-rtpreempt:
+  #   secret: <redacted>
+  #   selectors:
+  #     distro: d8
+  #     arch: '64'
+  #     flavor:
+  #       - rtp
+  #       - pos
+  # d8-32-rtpreempt:
+  #   secret: <redacted>
+  #   selectors:
+  #     distro: d8
+  #     arch: '32'
+  #     flavor:
+  #       - rtp
+  #       - pos
+  sl6-64-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: el6
+      arch: '64'
+      flavor:
+        - x
+        - x-k
+  sl6-64-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: el6
+      arch: '64'
+      flavor:
+        - rtp
+        - pos
+  sl6-32-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: el6
+      arch: '32'
+      flavor:
+        - x
+        - x-k
+        - pos # fill in for missing el6-32-rtpreempt
+# No RT_PREEMPT kernel for SL6-32; build posix threads in xenomai builder
+#  sl6-32-rtpreempt:
+#    secret: <redacted>
+#    selectors:
+#      distro: el6
+#      arch: '32'
+#      flavor:
+#       - rtp
+#       - pos
+  fc20-64-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: fc20
+      arch: '64'
+      flavor:
+        - x
+        - x-k
+  fc20-32-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: fc20
+      arch: '32'
+      flavor:
+        - x
+        - x-k
+  fc20-64-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: fc20
+      arch: '64'
+      flavor:
+        - rtp
+        - pos
+  fc20-32-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: fc20
+      arch: '32'
+      flavor:
+        - rtp
+        - pos
+  fc19-64-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: fc19
+      arch: '64'
+      flavor:
+        - x
+        - x-k
+  fc19-64-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: fc19
+      arch: '64'
+      flavor:
+        - rtp
+        - pos
+  fc19-32-xenomai:
+    secret: <redacted>
+    selectors:
+      distro: fc19
+      arch: '32'
+      flavor:
+        - x
+        - x-k
+  fc19-32-rtpreempt:
+    secret: <redacted>
+    selectors:
+      distro: fc19
+      arch: '32'
+      flavor:
+        - rtp
+        - pos
+
+#########################################################
+change_source:
+#
+# The buildmaster gets new commits from change sources.
+#
+  ubc-repos:
+    #
+    # This change source handles commits from multiple git repos.
+    #
+    # The changes are fed to the build master from the
+    # 'post-receive.py' script, which runs periodically from cron.
+    #
+    # Params:
+    #
+    #   dir: on buildmaster, location of the local git repo mirror
+    #     updated by post-receive
+    #
+    #   remote: the remote of the upstream git repo
+    #
+    #   local-remote: the URL of the mirrored repo for build slaves to
+    #     fetch changes from
+    #
+    #   revlink: a URL pattern to create a link in the web UI for a
+    #     commit
+    #
+    #   only-ancestors-of: tells post-receive to only feed the build
+    #     master commits who have the specified ancestor
+    #
+    type: multi-multi-git-poller
+    user: git-da
+    git-repos:
+      # gh-mhaberler:
+      #   dir: /home/buildbot/ubc3/mirrors/gh-mhaberler-linuxcnc.git
+      #   remote: https://github.com/mhaberler/linuxcnc.git
+      #   revlink: https://github.com/mhaberler/linuxcnc/commit/%s
+      #   # only-ancestors-of: e31ef6ca
+      #   only-ancestors-of: 73b07115
+      gh-zultron:
+        dir: /home/buildbot/ubc3/mirrors/gh-zultron-machinekit.git
+        remote: https://github.com/zultron/machinekit.git
+        revlink: https://github.com/zultron/machinekit/commit/%s
+        only-ancestors-of: 73b07115
+      gh-machinekit:
+        dir: /home/buildbot/ubc3/mirrors/gh-machinekit-linuxcnc.git
+        remote: https://github.com/machinekit/machinekit.git
+        revlink: https://github.com/machinekit/machinekit/commit/%s
+        # MK master is all based off of 73b07115.  :)
+        # only-ancestors-of: 73b07115
+      # glo:
+      #   # dir: /d/gitrepos/mirrors/glo-linuxcnc.git
+      #   dir: /home/buildbot/ubc3/mirrors/glo-linuxcnc.git
+      #   remote: git://git.linuxcnc.org/git/linuxcnc.git
+      #   revlink: http://git.linuxcnc.org/gitweb?p=linuxcnc.git;a=commit;h=%s
+      #   only-ancestors-of: e31ef6ca
+
 

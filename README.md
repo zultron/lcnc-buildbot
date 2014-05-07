@@ -1,49 +1,43 @@
-lcnc-buildbot
-=============
+machinekit-buildbot
+===================
 
-notes and master.cfg for a buildbot which builds lcnc
+This is the configuration for the Machinekit buildbot at
+http://buildbot.dovetail-automata.com/
 
------
-- Q:  A well-known buildbot already exists for the LinuxCNC (lcnc)
-    project, managed and maintained by Sebastian Kusminsky and 
-    publically accessible via http://buildbot.linuxcnc.org. So why
-    is there this apparent duplication of effort?
-- A1: I wanted to understand how buildbots work and what better than
-    to create one for a project to which I occasionally contribute.
-- A2: I wanted to build LCNC for branches, distros, and architectures not covered
-    in the LinuxCNC buildbot.
-- A3: There is strength in diversity.
+Configuration parameters have been pulled out into a separate
+'config.yaml' file.  See 'config.yaml.sample' for a complete example.
+
+The basic build flow:
 
 -----
 
-This repo contains my master.cfg for a buildmaster which controls a
-assortment of builders running on an assortment of buildslaves which
-were created using different distros and different architectures.
+- A git poller script triggers the 'ant' builder
 
-Passwords and personally identifiable information have been
-sanitized.
+- The 'ant' builder creates a tarball from git and triggers a build for
+  each distro+arch combination, and a documentation build for each distro
 
-Features of the resulting buildbot include
+- The '<distro>-<arch>' builders in turn trigger a
+  '<distro>-<arch>-bld' builder and then trigger concurrent
+  '<distro>-<arch>-<rtos>-tst' unit tests and '<distro>-<arch>-pkg'
+  package build
 
-Version 1:
+- The '<distro>-<arch>-bld' builders unpack the tarball from 'ant',
+  build in the appropriate chroot environment (debootstrap on Debian,
+  mock on Red Hat derivatives), and then pack up a result tarball
 
-- every 5 minutes poll the LCNC repository 
-  (git://git.linuxcnc.org/git/linuxcnc)
-  for changes to the Unified Build Candidate 3 branch
-- on a detected change or on receipt of a forced-build command,
-  start the builders for the Unified Build Candidate 3 branch on
-  all available buildslaves.
-- report the results to a standard set of buildbot web pages
-- enable specified users to force one or more builders to run on 
-  available buildslaves and possibly do other things as well.  
-- require at least 15 minutes to elapse after the last detected
-  change before triggering a new build. This is an attempt to 
-  minimize the following occurrance:
-    - the first of a related set of commits to the repo triggers
-      the buildmaster to start the builders
-    - the builders are started sequentially
-    - upon starting, each builder updates its private copy of the
-      repo; depending on the timing of the commits and the starts, 
-      the builders may not be updated to the same commit.
-    - the results of the builds reflect different commits as 
-      a result. 
+  - The '<distro>-<arch>-<rtos>-tst' builders unpack the '-bld' result
+    tarball and execute unit tests
+
+- The '<distro>-<arch>-pkg' builders unpack the 'ant' tarball and
+  build packages in a chroot environment
+
+- The '<distro>-doc' builders unpack the 'ant' tarball and build
+  documentation
+
+-----
+
+This is a work-in-progress, and wasn't designed, but evolved.
+Therefore, the code can be messy and convoluted.
+
+The emphasis of this work was on a simplified YAML configuration,
+which has been achieved, to a great degree.
