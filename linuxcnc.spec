@@ -97,9 +97,11 @@ BuildRequires:  psmisc
 %if 0%{?fedora}
 BuildRequires:  kmod
 BuildRequires:  procps-ng
+BuildRequires:  libusbx-devel
 %else
 BuildRequires:  module-init-tools
 BuildRequires:  procps
+BuildRequires:  libusb1-devel
 %endif
 # for building docs
 %if ! %{_without_docs}
