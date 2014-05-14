@@ -196,6 +196,9 @@ if test -z "$RPM_VERSION"; then
     export RPM_VERSION=$(rpm_version linuxcnc.spec)
 fi
 
+# mock breaks if /usr/bin comes after /usr/sbin in $PATH
+PATH=/bin:/usr/bin:/usr/sbin:/sbin
+
 
 ##############################################
 # INIT 'ANT'
