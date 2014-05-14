@@ -34,7 +34,9 @@ gitrel() {
 
 # print RPM 'Source0' filename from specfile in $1
 rpm_source0() {
-    rpm -q --specfile $1 -E '%{trace}\n' 2>&1 | awk '/Source0:/ {print $3}'
+    rpm -q --specfile $1 -E '%{trace}\n' 2>&1 | \
+	awk '/%{_sourcedir}\^/ { sub(".*%{_sourcedir}.",""); s=$0;}
+		END {print s}'
 }
 
 # print RPM version from specfile in $1
@@ -155,6 +157,8 @@ umask 022
 LANG=C
 
 GIT="git --git-dir=$repository"
+
+TMPFS_SIZE=500m
 
 # buildbot properties are not available in chroot
 if ! $IN_CHROOT && ! $SERVER_SIDE; then
@@ -551,6 +555,7 @@ step-build-binary-package() {
 	case $arch in
 	    32) RH_ARCH=i386 ;;
 	    64) RH_ARCH=x86_64 ;;
+	    arm) RH_ARCH=armhfp ;;
 	    *) echo "Unknown arch '$arch'"; exit 1 ;;
 	esac
 	case $distro in
@@ -584,7 +589,8 @@ step-init-buildroot() {
     fi
     # ensure tmpfs is mounted
     if ! df -t tmpfs $BUILD_TEST_DIR >& /dev/null; then
-	sudo -n mount -t tmpfs -o uid=buildbot,mode=755 tmpfs $BUILD_TEST_DIR
+	sudo -n mount -t tmpfs -o uid=buildbot,mode=755,size=$TMPFS_SIZE \
+	    tmpfs $BUILD_TEST_DIR
     fi
     if $DEBUG; then df -h $BUILD_TEST_DIR; fi
     # ensure build root is clean
