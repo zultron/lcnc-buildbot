@@ -170,7 +170,7 @@ if ! $IN_CHROOT && ! $SERVER_SIDE; then
     case $arch in
 	32) distro_arch=i386 ;;
 	64) distro_arch=x86_64 ;;
-	arm) distro_arch=armhfp ;;
+	bb) distro_arch=armhfp ;;
 	"") arch=64;  # pick an arch arbitrarily for e.g. docs
 	    distro_arch=x86_64 ;;
     esac
@@ -293,6 +293,10 @@ step-configure() {
     fi
     if ! test ${buildername%-doc} = ${buildername}; then
 	ARGS="$ARGS --enable-build-documentation"
+    fi
+    # don't try to build xenomai-kernel or rtpreempt on beaglebone
+    if test "${buildername}" = "${distro}-bb-bld"; then
+	ARGS="$ARGS --with-xenomai --with-posix"
     fi
     ./configure $ARGS
 }
@@ -546,7 +550,7 @@ step-build-source-package() {
 step-build-binary-package() {
     if is_debian; then
 	cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION
-	export DEB_BUILD_OPTIONS="parallel=8"
+	export DEB_BUILD_OPTIONS=parallel=$(num_procs)
 	dpkg-buildpackage -us -uc  -rfakeroot
 	# FIXME: what to copy to results dir?
 	ls -l ..
@@ -555,7 +559,7 @@ step-build-binary-package() {
 	case $arch in
 	    32) RH_ARCH=i386 ;;
 	    64) RH_ARCH=x86_64 ;;
-	    arm) RH_ARCH=armhfp ;;
+	    bb) RH_ARCH=armhfp ;;
 	    *) echo "Unknown arch '$arch'"; exit 1 ;;
 	esac
 	case $distro in
