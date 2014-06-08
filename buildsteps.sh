@@ -86,27 +86,76 @@ RemoveModules(){
     done
 }
 
+debian-chroot-mount-helper() {
+    local base=$debian_chroot_basedir/${distro}-${arch}
+    # check if we're mounting or unmounting
+    if test $1 = -u; then
+	local MOUNT=false
+	shift
+    else
+	local MOUNT=true
+    fi
+    # read other args
+    local DEV=$1
+    if test $DEV = bind; then
+	DEV=$(readlink -f $2)
+	local MOUNT_OPTS='-o bind'
+	local MOUNT_POINT=${base}${DEV}
+	local TYPE=none
+	local TEST="^[^ ][^ ]* on ${MOUNT_POINT}"
+	local BIND=true
+    else
+	local MOUNT_POINT=${base}$2
+	local TYPE=${3:-$DEV}
+	local TEST="^${DEV} on ${MOUNT_POINT}"
+	local BIND=false
+    fi
+    # check if mount already exists
+    if mount -t $TYPE | grep -q "$TEST"; then
+	if $MOUNT; then
+	    # Mount directory:  already mounted; remount if a bind mount
+	    echo "Mount already exists:" >&2
+	    mount -t $TYPE | grep "$TEST" >&2
+	    if $BIND; then
+		echo "...Remounting bind mount" >&2
+		sudo -n umount ${MOUNT_POINT}
+		sudo -n mount -t $TYPE $DEV $MOUNT_POINT ${MOUNT_OPTS}
+	    fi
+	else
+	    # Unmount directory
+	    sudo -n umount ${MOUNT_POINT}
+	fi
+    else
+	if $MOUNT; then
+	    # Mount directory
+	    # be sure mount directory exists
+	    test -d $MOUNT_POINT || sudo -n mkdir -p $MOUNT_POINT
+	    sudo -n mount -t $TYPE $DEV $MOUNT_POINT ${MOUNT_OPTS}
+	else
+	    # Unmount directory:  already unmounted
+	    echo "No mount found:  $TEST" >&2
+	fi
+    fi
+}
+
 debian-chroot-mount() {
-    # debian-chroot-mount
-    for MOUNT in $debian_chroot_mounts $BUILD_TEST_DIR; do
-	# ensure mount directory exists
-	test -d $debian_chroot_basedir/${distro}-${arch}${MOUNT} || \
-	    sudo -n mkdir -p $debian_chroot_basedir/${distro}-${arch}${MOUNT}
-	# bind-mount a directory into the chroot
-        sudo -n mount -o bind $MOUNT \
-	    $debian_chroot_basedir/${distro}-${arch}${MOUNT}
-    done
+    # mount needed filesystems in chroot
+    debian-chroot-mount-helper proc /proc
+    debian-chroot-mount-helper sysfs /sys
+    debian-chroot-mount-helper udev /dev devtmpfs
+    # debian-chroot-mount-helper devpts /dev/pts
+    debian-chroot-mount-helper bind $BUILD_TEST_DIR
+    debian-chroot-mount-helper bind $WORKDIR
 }
 
 debian-chroot-umount() {   
-    # reverse list, in case there are mounts under mounts
-    local debian_chroot_umounts
-    for MOUNT in $debian_chroot_mounts; do
-	debian_chroot_umounts="$MOUNT $debian_chroot_umounts"
-    done
-    for MOUNT in $BUILD_TEST_DIR $debian_chroot_umounts; do
-        sudo -n umount $debian_chroot_basedir/${distro}-${arch}${MOUNT}
-    done
+    # unmount filesystems in chroot
+    debian-chroot-mount-helper -u proc /proc
+    debian-chroot-mount-helper -u sysfs /sys
+    # debian-chroot-mount-helper -u devpts /dev/pts
+    debian-chroot-mount-helper -u udev /dev devtmpfs
+    debian-chroot-mount-helper -u bind $BUILD_TEST_DIR
+    debian-chroot-mount-helper -u bind $WORKDIR
 }
 
 debian-chroot-run() {
