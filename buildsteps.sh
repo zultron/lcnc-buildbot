@@ -186,6 +186,8 @@ if test "$1" = -r; then
     BUILD_TEST_DIR="$2"
     # BUILD_TEST_DIR is a sensible directory to start in
     cd $BUILD_TEST_DIR
+    # Show what the environment looks like in the chroot
+    env
 fi
 
 # At least a step should be defined
