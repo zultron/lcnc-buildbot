@@ -408,6 +408,7 @@ rtapi-init() {
 	'') echo "buildername is unset!" 1>&2; exit 1 ;;
 	*) echo "buildername '$buildername' unknown!" 1>&2; exit 1 ;;
     esac
+    echo "Detected flavor '${FLAVOR}' from builder name ${buildername}"
     export FLAVOR
 }
 
@@ -417,7 +418,7 @@ rtapi-init() {
 step-test-environment() {
     set +x
     rtapi-init
-    echo 'flavor:'
+    echo 'default flavor:'
     flavor
     echo
     echo 'env:'
@@ -444,7 +445,7 @@ step-test-environment() {
     echo 'python -V:'; 
     python -V; 
     echo; 
-    if test $FLAVOR = xenomai -o $FLAVOR = xenomai-kernel; then
+    if test "$FLAVOR" = xenomai -o "$FLAVOR" = xenomai-kernel; then
 	if test -x /usr/bin/xenomai-gid-ctl; then
 	    # 2.6.3 RPMs include this utility
 	    echo "xenomai-gid-ctl test:"
@@ -455,8 +456,10 @@ step-test-environment() {
 	    if test $xeno_gid = -1; then
 		echo "xenomai non-root group disabled!"
 	    else
-		echo "xenomai non-root group:"
-		getent group | grep $xeno_gid
+		xeno_group=$(getent group | \
+		    awk -F : "/:${xeno_gid}:/ { print \$1 }")
+		echo "xenomai non-root group: " \
+		    "name=${xeno_group}; gid=${xeno_gid}"
 	    fi
 	fi
     fi
@@ -480,7 +483,7 @@ step-test-environment() {
 	killall linuxcncrsh
 	sleep 1
     fi
-    if test $FLAVOR = xenomai-kernel; then
+    if test "$FLAVOR" = xenomai-kernel; then
 	echo "looking for hal_lib in /proc/modules:"
 	depmods="$(awk '/^hal_lib / { gsub(","," ",$4); print $4 }' \
 		 /proc/modules)"
@@ -501,7 +504,7 @@ step-test-environment() {
 	*) STOP_FLAVORS="$FLAVOR posix" ;;
     esac
     for f in $STOP_FLAVORS; do
-	echo 'stopping realtime environment for flavor $f:'
+	echo "stopping realtime environment for flavor $f:"
 	FLAVOR=$f DEBUG=5 MSGD_OPTS=-s realtime stop || true
 	echo
     done
