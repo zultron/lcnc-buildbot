@@ -586,7 +586,10 @@ step-build-tarball() {
 # configure debian package in chroot
 step-configure-package() {
     cd $BUILD_TEST_DIR/linuxcnc-$RPM_VERSION/debian
-    ./configure
+    if test "${buildername}" = "${distro}-bb-pkg"; then
+	local CONFIGURE_OPTS="--disable-docs"
+    fi
+    ./configure ${CONFIGURE_OPTS}
 }
 
 # create linuxcnc-2.6-<release>-<shortrev>.src.rpm or Debian source
