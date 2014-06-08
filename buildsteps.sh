@@ -675,7 +675,7 @@ step-clean-buildroot() {
 # DO IT:  RUN STEP
 
 if $CHROOT; then
-    cmd="$BUILD_TEST_DIR/buildsteps.sh -r $step $BUILD_TEST_DIR"
+    cmd="$WORKDIR/buildsteps.sh -r $step $BUILD_TEST_DIR"
     if is_debian; then
 	trap debian-chroot-umount 0 1 2 3 9 15
 	debian-chroot-mount
