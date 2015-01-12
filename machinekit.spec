@@ -63,9 +63,9 @@
 %endif
 
 
-Name:           linuxcnc
-Version:        2.6.0
-Release:        0.6%{?_pre:.%{_pre}}%{?_gitrel:.%{_gitrel}}%{?dist}
+Name:           machinekit
+Version:        0.1.0
+Release:        0.0%{?_pre:.%{_pre}}%{?_gitrel:.%{_gitrel}}%{?dist}
 Summary:        A software system for computer control of machine tools
 
 License:        GPLv2
@@ -141,11 +141,7 @@ Requires:       tkimg
 
 %description
 
-LinuxCNC (the Enhanced Machine Control) is a software system for
-computer control of machine tools such as milling machines and lathes.
-
-This version is from Michael Haberler's preview that integrates RTAI,
-RT_PREEMPT, Xenomai-kernel, Xenomai-User and Simulator
+Machinekit is an open-source machine controller.
 
 
 %package devel
@@ -168,14 +164,14 @@ Documentation files for the %{name} package
 
 %if ! %{_without_posix}
 %package	flavor-posix
-Summary:	LinuxCNC modules for the POSIX flavor
-Provides:	linuxcnc-flavor
-Provides:	linuxcnc-flavor-posix
-Requires:	linuxcnc == %{version}
+Summary:	Machinekit modules for the POSIX flavor
+Provides:	machinekit-flavor
+Provides:	machinekit-flavor-posix
+Requires:	machinekit == %{version}
 
 %description	flavor-posix
 
-This package provides the RT modules for the LinuxCNC POSIX flavor.
+This package provides the RT modules for the Machinekit POSIX flavor.
 
 This flavor has no RT capabilities and is for simulation and non-RT
 applications only.  It requires no special kernel.
@@ -184,15 +180,15 @@ applications only.  It requires no special kernel.
 
 %if ! %{_without_rt_preempt}
 %package	flavor-rt-preempt
-Summary:	LinuxCNC modules for the RT_PREEMPT flavor
-Provides:	linuxcnc-flavor
-Provides:	linuxcnc-flavor-rt-preempt
-Requires:	linuxcnc == %{version}
+Summary:	Machinekit modules for the RT_PREEMPT flavor
+Provides:	machinekit-flavor
+Provides:	machinekit-flavor-rt-preempt
+Requires:	machinekit == %{version}
 Requires:	kernel-rt
 
 %description	flavor-rt-preempt
 
-This package provides the RT modules for the LinuxCNC RT_PREEMPT flavor.
+This package provides the RT modules for the Machinekit RT_PREEMPT flavor.
 
 It requires a kernel with the RT_PREEMPT patch.
 
@@ -200,16 +196,16 @@ It requires a kernel with the RT_PREEMPT patch.
 
 %if ! %{_without_xenomai}
 %package	flavor-xenomai
-Summary:	LinuxCNC modules for the Xenomai flavor
-Provides:	linuxcnc-flavor
-Provides:	linuxcnc-flavor-xenomai
-Requires:	linuxcnc == %{version}
+Summary:	Machinekit modules for the Xenomai flavor
+Provides:	machinekit-flavor
+Provides:	machinekit-flavor-xenomai
+Requires:	machinekit == %{version}
 Requires:	kernel-xenomai
 Requires:	xenomai
 
 %description	flavor-xenomai
 
-This package provides the RT modules for the LinuxCNC Xenomai flavor.
+This package provides the RT modules for the Machinekit Xenomai flavor.
 
 It requires a kernel with the Xenomai patch.
 
@@ -217,16 +213,16 @@ It requires a kernel with the Xenomai patch.
 
 %if ! %{_without_xenomai_kernel}
 %package	flavor-xenomai-kernel
-Summary:	LinuxCNC modules for the Xenomai kernel threads flavor
-Provides:	linuxcnc-flavor
-Provides:	linuxcnc-flavor-xenomai-kernel
-Requires:	linuxcnc == %{version}
+Summary:	Machinekit modules for the Xenomai kernel threads flavor
+Provides:	machinekit-flavor
+Provides:	machinekit-flavor-xenomai-kernel
+Requires:	machinekit == %{version}
 Requires:	kernel-xenomai == %{xenomai_kpkg_version}
 Requires:	xenomai
 
 %description	flavor-xenomai-kernel
 
-This package provides the RT kernel modules for the LinuxCNC Xenomai
+This package provides the RT kernel modules for the Machinekit Xenomai
 kernel-threads flavor.
 
 It requires the Xenomai kernel package, version %{xenomai_kpkg_version}.
@@ -235,16 +231,16 @@ It requires the Xenomai kernel package, version %{xenomai_kpkg_version}.
 
 %if ! %{_without_rtai_kernel}
 %package	flavor-rtai-kernel
-Summary:	LinuxCNC modules for the RTAI kernel threads flavor
-Provides:	linuxcnc-flavor
-Provides:	linuxcnc-flavor-rtai-kernel
-Requires:	linuxcnc == %{version}
+Summary:	Machinekit modules for the RTAI kernel threads flavor
+Provides:	machinekit-flavor
+Provides:	machinekit-flavor-rtai-kernel
+Requires:	machinekit == %{version}
 Requires:	kernel-rtai == %{rtai_kpkg_version}
 Requires:	rtai
 
 %description	flavor-rtai-kernel
 
-This package provides the RT kernel modules for the LinuxCNC RTAI
+This package provides the RT kernel modules for the Machinekit RTAI
 kernel-threads flavor.
 
 It requires the RTAI kernel package, version %{rtai_kpkg_version}.
@@ -283,7 +279,7 @@ make -e install DESTDIR=$RPM_BUILD_ROOT \
 # put the docs in the right place
 %if 0%{?fedora} < 20
 # RHEL <= 7 and Fedora <= 19 put version numbers on doc directory
-mv $RPM_BUILD_ROOT%{_docdir}/linuxcnc \
+mv $RPM_BUILD_ROOT%{_docdir}/machinekit \
    $RPM_BUILD_ROOT%{_docdir}/%{name}-%{version}
 %endif
 

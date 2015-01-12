@@ -11,7 +11,7 @@
 /gitpoller-workdir/
 
 # runtime artifacts
-/http.log
+/http.log*
 /twistd.log
 /twistd.log.[0-9]*
 /twistd.pid
