@@ -338,7 +338,7 @@ step-configure-source-package() {
 
 	# Configure package; set POSIX, RT_PREEMPT, XENOMAI and docs
 	# by default
-	$SRCDIR/debian/configure -prxdt 8.5
+	$SRCDIR/debian/configure -prxt 8.5
 
 	# build source package with updated distro changelog
 	dpkg-source -i -I -l${CHANGELOG} -b $SRCDIR
@@ -749,7 +749,7 @@ step-prep-source-package() {
 	case "${buildername}" in
 	    *-bb-pkg)  : ;;  # nothing extra
 	    *-32-pkg)  args+=" -r ${xk_args} ${rk_args}" ;;
-	    *-64-pkg)  args+=" -rd ${xk_args} ${rk_args}" ;;
+	    *-64-pkg)  args+=" -r ${xk_args} ${rk_args}" ;;
 	    *)  echo "Unknown buildername ${buildername}"; exit 1 ;;
 	esac
 	# reconfigure the package
